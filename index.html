@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>31 EDO Lattice Visualizer</title>
+    <script src="dissonance_wasm.js"></script>
+    <script type="application/javascript">
+        // javascript is dumb
+        function mod(n, m) {
+            return ((n % m) + m) % m;
+        }
+
+        const {calculateDissonance, dissonanceMatrix, findOffender} = wasm_bindgen;
+        let LOADED = false;
+
+        async function init_wasm() {
+            await wasm_bindgen('./dissonance_wasm_bg.wasm');
+            LOADED = true;
+        }
+
+        init_wasm();
+
+        let USE_OCTAVE_REDUCED_PRIMES = true;
+    </script>
+    <script src="math.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
+    <script src="configs.js"></script>
+    <script src="just-intonation.js"></script>
+    <script src="harmonic-context.js"></script>
+    <script src="drawn-objects.js"></script>
+    <script src="note-tracking.js"></script>
+    <script src="main.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+
+</body>
+</html>
