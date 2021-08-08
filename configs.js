@@ -1,3 +1,5 @@
+const VERSION = 'v0.1.1'
+
 // TODO: Work these constants out
 let P2_angle = 90;
 let P2_len = 4;

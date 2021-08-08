@@ -2,8 +2,6 @@
 let KEYS_STATE = {};
 let SUSTAIN_STATE = false;
 
-let notesCurrentlySustainedByPedal = [];
-
 class KeyState {
     constructor(stepsFromA, vel) {
         this.stepsFromA = stepsFromA;
@@ -29,8 +27,6 @@ function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManage
         clearHarmonicContextTimeoutID = null;
     }
     KEYS_STATE[stepsFromA] = new KeyState(stepsFromA, vel);
-    let idx = notesCurrentlySustainedByPedal.indexOf(stepsFromA);
-    notesCurrentlySustainedByPedal.splice(idx, 1);
 
     let [fromPitch, relativeRatio] = harmonicContext.registerNote(stepsFromA);
     if (fromPitch === null) {
@@ -46,7 +42,6 @@ function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManage
 function noteOff(stepsFromA, vel) {
     // console.log('received note off: ', stepsFromA, vel);
     if (SUSTAIN_STATE) {
-        notesCurrentlySustainedByPedal.push(stepsFromA);
         KEYS_STATE[stepsFromA].fromSustainPedal = true;
     } else {
         delete KEYS_STATE[stepsFromA];
@@ -66,11 +61,13 @@ function cc(cc, value) {
     if (cc === 64) {
         SUSTAIN_STATE = value >= 64;
         if (!SUSTAIN_STATE) {
-            for (let x of notesCurrentlySustainedByPedal) {
+            let sustainedNotes = Object.entries(KEYS_STATE).filter(
+                ([_,keyState]) => keyState.fromSustainPedal
+            ).map((_,kS) => kS);
+
+            for (let x of sustainedNotes) {
                 delete KEYS_STATE[x]
             }
-
-            notesCurrentlySustainedByPedal = [];
         }
     }
 }

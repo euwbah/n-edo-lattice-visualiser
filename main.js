@@ -141,7 +141,7 @@ function draw() {
         ` camera: ${camera.centerX.toFixed(1)}, ${camera.centerY.toFixed(1)}, ` +
         `zoom: ${camera.zoom.toFixed(1)}, ball std dev: ${ballManager.stdDeviation}`,
         10, 30);
-    text('v0.1', 10, 60);
+    text(VERSION, 10, 60);
 }
 
 let _generateRandom = null;
