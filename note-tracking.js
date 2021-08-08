@@ -64,7 +64,7 @@ function noteOff(stepsFromA, vel) {
 function cc(cc, value) {
     // console.log('received cc: ', cc, value);
     if (cc === 64) {
-        let SUSTAIN_STATE = value >= 64;
+        SUSTAIN_STATE = value >= 64;
         if (!SUSTAIN_STATE) {
             for (let x of notesCurrentlySustainedByPedal) {
                 delete KEYS_STATE[x]
