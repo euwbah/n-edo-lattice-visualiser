@@ -63,10 +63,10 @@ function cc(cc, value) {
         if (!SUSTAIN_STATE) {
             let sustainedNotes = Object.entries(KEYS_STATE).filter(
                 ([_,keyState]) => keyState.fromSustainPedal
-            ).map((_,kS) => kS);
+            ).map(([stepsFromA,_]) => stepsFromA);
 
             for (let x of sustainedNotes) {
-                delete KEYS_STATE[x]
+                delete KEYS_STATE[x];
             }
         }
     }

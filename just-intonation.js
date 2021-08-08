@@ -180,6 +180,20 @@ class HarmonicCoordinates {
             return 0;
     }
 
+    /**
+     * A heuristic measure to evaluate the distance between two harmonic coordinates.
+     * Use this to ensure that the harmonic context doesn't go haywire.
+     * @param hc
+     */
+    harmonicDistance(hc) {
+        return hc.subtract(this).harmonicDistanceFromOrigin();
+    }
+
+    harmonicDistanceFromOrigin() {
+        return this.p2 * Math.log2(2) + this.p3 * Math.log2(3) +
+            this.p5 * Math.log2(5) + this.p7 * Math.log2(7) + this.p11 * Math.log2(11);
+    }
+
     equals(hc) {
         return this.p2 === hc.p2 && this.p3 === hc.p3 && this.p5 === hc.p5 && this.p7 === hc.p7 && this.p11 === hc.p11;
     }

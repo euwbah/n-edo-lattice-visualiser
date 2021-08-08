@@ -1,4 +1,4 @@
-const VERSION = 'v0.1.1'
+const VERSION = 'v0.1.2'
 
 // TODO: Work these constants out
 let P2_angle = 90;
@@ -43,9 +43,12 @@ function preload() {
 
 let MAX_SHORT_TERM_MEMORY = 6;
 let MAX_DISSONANCE = 20;
+// Prevents harmonic context from going out of hand
+// See HarmonicCoordinates.harmonicDistance() for heuristic implementation.
+let MAX_HARMONIC_DISTANCE = 8;
 // How much does being a (non)chord-tone affect the display of a ball.
 // the closer the value to zero, the higher the effect.
-let CHORD_TONE_EFFECT = 0.8;
+let CHORD_TONE_EFFECT = 0.7;
 
 let PROJECTION_TYPE = 'curved';
 let MAX_ZOOM = 100;

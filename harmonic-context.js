@@ -11,15 +11,26 @@ class Pitch {
      * @type {number}
      */
     frequency;
+    /**
+     *  @type {Pitch}
+     */
+    origin;
+    /**
+     * @type {HarmonicCoordinates}
+     */
+    relativeRatio;
 
-    constructor(stepsFromA, functioningAs) {
+    constructor(stepsFromA, origin, relativeRatio) {
         this.stepsFromA = stepsFromA;
-        /**
-         * @type {HarmonicCoordinates}
-         */
-        this.functioningAs = functioningAs;
-
         this.frequency = 440 * 2 ** (stepsFromA / 31);
+        this.origin = origin;
+        this.relativeRatio = relativeRatio;
+        if (origin)
+            this.functioningAs = this.origin.functioningAs.add(this.relativeRatio);
+        else {
+            this.functioningAs = this.relativeRatio;
+            origin = null;
+        }
     }
 }
 
@@ -47,7 +58,7 @@ class HarmonicContext {
         if (this.shortTermMemory.length === 0) {
             // 1. SIMPLE.
             let harmonicCoordinates = new HarmonicCoordinates(0, 0, 0, 0, 0);
-            this.shortTermMemory.push(new Pitch(stepsFromA, harmonicCoordinates));
+            this.shortTermMemory.push(new Pitch(stepsFromA, null, harmonicCoordinates));
             return [null, harmonicCoordinates];
         }
 
@@ -69,7 +80,6 @@ class HarmonicContext {
          * @type {HarmonicCoordinates}
          */
         let bestFitRatio; // the preferred perceived ratio between the relative note and the new registered note.
-        // let bestFitDissonance = 99999;
 
         // let t = new Date();
 
@@ -84,12 +94,6 @@ class HarmonicContext {
                 let candidateFreq = r.toFrequency(pitch.frequency);
                 let freqs = stmFreqs.concat(candidateFreq);
                 freqArrays.push(freqs);
-                // let dissonanceScore = calculateDissonance(freqs);
-                // if (dissonanceScore < bestFitDissonance) {
-                //     bestFitRelativeNote = pitch;
-                //     bestFitRatio = r;
-                //     bestFitDissonance = dissonanceScore;
-                // }
             }
             candidates_pitches.push([pitch, candidateRatios, freqArrays])
         }
@@ -101,22 +105,21 @@ class HarmonicContext {
         let [p_idx, r_idx] = dissonanceMatrix(freqMatrix);
         bestFitRelativeNote = candidates_pitches[p_idx][0];
         bestFitRatio = candidates_pitches[p_idx][1][r_idx];
-
         // console.log(`using dissonanceMatrix: ${(new Date()) - t} ms`);
-
         // console.log(`Choosing`, bestFitRelativeNote, bestFitRatio);
-
 
         let newAbsRatio = bestFitRatio.add(bestFitRelativeNote.functioningAs);
 
-        if (this.containsHarmCoords(newAbsRatio)) {
+        let existingPitch = this.getPitchByHarmCoords(newAbsRatio);
+        console.log(existingPitch);
+        if (existingPitch) {
             // There are no new interpretations of this note.
             // Don't change the harmonic context
-            // submit newAbsRatio as it will be handled as if there is no prior harmonic context.
-            return [null, newAbsRatio];
+            // re-submit the existing
+            return [existingPitch.origin, existingPitch.relativeRatio];
         }
 
-        this.shortTermMemory.push(new Pitch(stepsFromA, newAbsRatio));
+        this.shortTermMemory.push(new Pitch(stepsFromA, bestFitRelativeNote, bestFitRatio));
 
         // 3. If the new pitch clashes with any pitch by 1 diesis, remove the old pitch from STM.
 
@@ -133,22 +136,9 @@ class HarmonicContext {
         // t = new Date();
 
         let removeOffender = () => {
-            // At this point the newly registered note is the last element of the STM array, so
-            // exclude that from the check.
-            // let freqs = this.stmFrequencies();
-            //
-            // let highestDissonance = 0;
-            // let idxOfHighestDissonance = -1;
-            // for (let i = 0; i < this.shortTermMemory.length - 1; i++) {
-            //     let dissonance = calculateDissonance(freqs.filter((_, idx) => idx !== i));
-            //     if (dissonance > highestDissonance) {
-            //         highestDissonance = dissonance;
-            //         idxOfHighestDissonance = i;
-            //     }
-            // }
-
+            // note: this wasm function will not consider the last element of the freq array
+            //       to be the offender, since the last element is the most recent element.
             let idxOfHighestDissonance = findOffender(this.stmFrequencies());
-
             this.shortTermMemory.splice(idxOfHighestDissonance, 1);
         }
 
@@ -161,6 +151,17 @@ class HarmonicContext {
             else
                 break;
         }
+
+        // 5. Remove older notes which are too far out harmonically from this new note.
+
+        for (let i = 0; i < this.shortTermMemory.length - 1; i++) {
+            let p = this.shortTermMemory[i];
+            if (newAbsRatio.harmonicDistance(p) > MAX_HARMONIC_DISTANCE) {
+                this.shortTermMemory.splice(i, 1);
+                i--;
+            }
+        }
+
 
         // console.log(`Using findOffender: ${(new Date()) - t} ms`);
 
@@ -209,6 +210,10 @@ class HarmonicContext {
 
     containsHarmCoords(harmCoords) {
         return this.shortTermMemory.some(x => x.functioningAs.equals(harmCoords));
+    }
+
+    getPitchByHarmCoords(harmCoords) {
+        return this.shortTermMemory.filter(x => x.functioningAs.equals(harmCoords))[0] || null;
     }
 
     // in the event the HarmonicCoordinates get out of hand or something...

@@ -164,7 +164,7 @@ class BallsManager {
      * @returns {Ball} The ball that was created
      */
     noteOn(harmCoords, stepsFromA, velocity) {
-        console.log('ball note on: ', harmCoords);
+        console.log('ball note on: ', harmCoords.harmonicDistanceFromOrigin(), harmCoords);
         let presence = Math.pow(velocity / 127, 0.5) * 0.5 + 0.5;
         let existingBall = this.balls[harmCoords];
         if (existingBall !== undefined) {
