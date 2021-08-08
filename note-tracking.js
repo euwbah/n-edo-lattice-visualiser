@@ -1,4 +1,7 @@
 // This dict only contains notes that are currently being sounded.
+/**
+ * @type {Object.<number, KeyState>}
+ */
 let KEYS_STATE = {};
 let SUSTAIN_STATE = false;
 
@@ -12,6 +15,18 @@ class KeyState {
 
 let clearHarmonicContextTimeoutID = null;
 
+function countExistingKeysState() {
+    let held = 0, sustained = 0;
+    for (let [k, v] of Object.entries(KEYS_STATE)) {
+        if (v.fromSustainPedal)
+            sustained++;
+        else
+            held++;
+    }
+
+    return [held, sustained];
+}
+
 /**
  *
  * @param {number} stepsFromA
@@ -22,6 +37,7 @@ let clearHarmonicContextTimeoutID = null;
  */
 function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManager) {
     // console.log('received note on: ', stepsFromA, vel);
+    addHappeningness(NOTE_ON_HAPPENINGNESS * Math.pow(vel/127, 1.5) + 0.01);
     if (clearHarmonicContextTimeoutID !== null) {
         clearTimeout(clearHarmonicContextTimeoutID);
         clearHarmonicContextTimeoutID = null;
@@ -33,9 +49,9 @@ function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManage
         // the harmonic context is fresh.
         ballManager.noteOn(relativeRatio, stepsFromA, vel);
     } else {
-        let absoluteRatio = fromPitch.functioningAs.add(relativeRatio);
+        let absoluteRatio = fromPitch.absoluteRatio.add(relativeRatio);
         let newBall = ballManager.noteOn(absoluteRatio, stepsFromA, vel);
-        scaffoldingManager.create(fromPitch.functioningAs, newBall);
+        scaffoldingManager.create(fromPitch.absoluteRatio, newBall);
     }
 }
 
@@ -52,7 +68,7 @@ function noteOff(stepsFromA, vel) {
         clearHarmonicContextTimeoutID = setTimeout(() => {
             harmonicContext.reset();
             clearHarmonicContextTimeoutID = null;
-        }, 10000);
+        }, RESET_TIME_SECS * 1000);
     }
 }
 

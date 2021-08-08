@@ -42,7 +42,8 @@ let hBlurPass1, vBlurPass2, bloomPass3, blurPass4, blurPass5, bloomPass6;
 
 
 function setup() {
-    createCanvas(windowWidth, windowHeight);
+    let cvs = createCanvas(windowWidth, windowHeight);
+    cvs.id('mycanvas');
     colorMode(HSB, 360, 100, 100, 1);
     noStroke();
     GRAPHICS = createGraphics(windowWidth, windowHeight);
@@ -50,6 +51,8 @@ function setup() {
     smooth();
     setAttributes('antialias', true);
     textFont(FIRA_SANS);
+
+    ballManager.setup();
 
     hBlurPass1 = createGraphics(windowWidth, windowHeight, WEBGL);
     vBlurPass2 = createGraphics(windowWidth, windowHeight, WEBGL);
@@ -86,24 +89,38 @@ function draw() {
     background(0);
     GRAPHICS.background(0);
 
+    let [held, sustained] = countExistingKeysState();
+    addHappeningness(deltaTime / 4000 * (held * HELD_NOTE_HAPPENINGNESS + sustained * SUSTAINED_NOTE_HAPPENINGNESS));
+    HAPPENINGNESS = Math.max(0, HAPPENINGNESS - Math.pow(HAPPENINGNESS * deltaTime / 2000, 1.1));
+
+    let dRotator = (Math.pow(Math.max(0, (HAPPENINGNESS - 0.1) / 0.9), 2) - ROTATOR / (1 + 2 * HAPPENINGNESS * 10)) * deltaTime / 500 * (1 - HAPPENINGNESS);
+    ROTATOR += dRotator;
+
+    harmonicContext.tick();
     ballManager.tick(KEYS_STATE, harmonicContext);
     scaffoldingManager.tick();
-    camera.tick(ballManager.stdDeviation);
+    camera.tick(ballManager.stdDeviation, dRotator);
 
     scaffoldingManager.draw(camera, GRAPHICS);
     ballManager.draw(camera, GRAPHICS);
 
+    let shaderBlurCoef = SHADER_BLUR_COEF + Math.pow(HAPPENINGNESS, 1.5) * 1.1;
+    document.getElementById('mycanvas').style.filter =
+        `saturate(${HAPPENINGNESS * 0.7 + 0.75}) brightness(${HAPPENINGNESS * 1.7 + 1}) contrast(${HAPPENINGNESS * 0.5 + 1})`;
+
     if (USE_SHADERS) {
         hBlurPass1.shader(shaderBlurH);
+        shaderBlurH.setUniform('brightness', Math.pow(HAPPENINGNESS, 1.3) * 0.25);
         shaderBlurH.setUniform('tex0', GRAPHICS);
         shaderBlurH.setUniform('texelSize', [1 / windowWidth, 1 / windowHeight]);
-        shaderBlurH.setUniform('direction', [SHADER_BLUR_COEF, 0]);
+        shaderBlurH.setUniform('direction', [shaderBlurCoef, 0]);
         hBlurPass1.rect(0, 0, windowWidth, windowHeight);
 
         vBlurPass2.shader(shaderBlurV);
+        shaderBlurV.setUniform('brightness', Math.pow(HAPPENINGNESS, 1.3) * 0.25);
         shaderBlurV.setUniform('tex0', hBlurPass1);
         shaderBlurV.setUniform('texelSize', [1 / windowWidth, 1 / windowHeight]);
-        shaderBlurV.setUniform('direction', [0, SHADER_BLUR_COEF]);
+        shaderBlurV.setUniform('direction', [0, shaderBlurCoef]);
         vBlurPass2.rect(0, 0, windowWidth, windowHeight);
 
         bloomPass3.shader(shaderBloom);
@@ -113,15 +130,17 @@ function draw() {
         bloomPass3.rect(0, 0, windowWidth, windowHeight);
 
         blurPass4.shader(shaderBlur3);
+        shaderBlur3.setUniform('brightness', Math.pow(HAPPENINGNESS, 2) * 0.1);
         shaderBlur3.setUniform('tex0', bloomPass3);
         shaderBlur3.setUniform('texelSize', [1 / windowWidth, 1 / windowHeight]);
-        shaderBlur3.setUniform('direction', [SHADER_BLUR_COEF, 0]);
+        shaderBlur3.setUniform('direction', [shaderBlurCoef, 0]);
         blurPass4.rect(0, 0, windowWidth, windowHeight);
 
         blurPass5.shader(shaderBlur4);
+        shaderBlur4.setUniform('brightness', Math.pow(HAPPENINGNESS, 2) * 0.1);
         shaderBlur4.setUniform('tex0', blurPass4);
         shaderBlur4.setUniform('texelSize', [1 / windowWidth, 1 / windowHeight]);
-        shaderBlur4.setUniform('direction', [0, SHADER_BLUR_COEF]);
+        shaderBlur4.setUniform('direction', [0, shaderBlurCoef]);
         blurPass5.rect(0, 0, windowWidth, windowHeight);
 
         bloomPass6.shader(shaderBloom2);
@@ -137,11 +156,18 @@ function draw() {
 
     textSize(20);
     fill(0, 0, 100)
-    text(`fps: ${(1 / (deltaTime / 1000)).toFixed(1)}` +
-        ` camera: ${camera.centerX.toFixed(1)}, ${camera.centerY.toFixed(1)}, ` +
-        `zoom: ${camera.zoom.toFixed(1)}, ball std dev: ${ballManager.stdDeviation}`,
-        10, 30);
-    text(VERSION, 10, 60);
+    text(VERSION, 10, 30);
+    if (DEBUG) {
+        text(`fps: ${(1 / (deltaTime / 1000)).toFixed(1)} ` +
+            `camera: ${camera.centerX.toFixed(1)}, ${camera.centerY.toFixed(1)}, ` +
+            `zoom: ${camera.zoom.toFixed(1)}, std dev: ${ballManager.stdDeviation.toFixed(2)}`,
+            10, 60);
+        text(`happening: ${HAPPENINGNESS.toFixed(3)}, diss: ${harmonicContext.dissonance.toFixed(2)} ` +
+            `/ ${harmonicContext.effectiveMaxDiss.toFixed(2)} [${harmonicContext.shortTermMemory.length}]`,
+            10, 90);
+        text(`harm dist max: ${harmonicContext.maxHarmonicDistance.toFixed(2)}, mean: ${harmonicContext.meanHarmonicDistance.toFixed(2)}`,
+            10, 120)
+    }
 }
 
 let _generateRandom = null;

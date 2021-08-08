@@ -26,9 +26,9 @@ class Pitch {
         this.origin = origin;
         this.relativeRatio = relativeRatio;
         if (origin)
-            this.functioningAs = this.origin.functioningAs.add(this.relativeRatio);
+            this.absoluteRatio = this.origin.absoluteRatio.add(this.relativeRatio);
         else {
-            this.functioningAs = this.relativeRatio;
+            this.absoluteRatio = this.relativeRatio;
             origin = null;
         }
     }
@@ -40,12 +40,91 @@ class Pitch {
 class HarmonicContext {
     // modelling the harmonic tonal space of the brain in short term memory
     #tonalCenterUnscaledCoords = [0, 0];
+    #dCenter_dRotator = [0, 0];
     shortTermMemory = [];
+    #dissonance = 0;
+    #effectiveMaxDiss = MAX_DISSONANCE;
+    /**
+     * A number ranging 0 to 1 representing the amount of dissonance fatigue.
+     * @type {number}
+     */
+    #fatigue = 0;
+    #maxHarmDist = 0;
+    #meanHarmDist = 0;
+    /**
+     * Repeated comma shifts can cause the lattice to appear extremely haywire
+     * @type {HarmonicCoordinates}
+     */
+    #effectiveOrigin = new HarmonicCoordinates(0,0,0,0,0);
 
     constructor() {
 
     }
 
+    get dissonance() {
+        return this.#dissonance;
+    }
+
+    get effectiveMaxDiss() {
+        return this.#effectiveMaxDiss;
+    }
+
+    get fatigue() {
+        return this.#fatigue;
+    }
+
+    get maxHarmonicDistance() {
+        return this.#maxHarmDist;
+    }
+
+    get meanHarmonicDistance() {
+        return this.#meanHarmDist;
+    }
+
+
+    get tonalCenterUnscaledCoords() {
+        return this.#tonalCenterUnscaledCoords;
+    }
+
+    get dCenterCoords_dRotator() {
+        return this.#dCenter_dRotator;
+    }
+
+    tick() {
+        if (this.dissonance > CONSONANCE_THRESHOLD) {
+            let df = deltaTime / 1000 / MAX_FATIGUE_SECS * (this.dissonance - CONSONANCE_THRESHOLD) / (MAX_DISSONANCE - CONSONANCE_THRESHOLD);
+            this.#fatigue = Math.min(1, this.fatigue + df);
+        } else {
+            // Fatigue recovers at least twice as fast.
+            let df = deltaTime / 1000 / MAX_FATIGUE_SECS;
+            this.#fatigue = Math.max(0, this.fatigue - df * 2);
+        }
+        this.#effectiveMaxDiss = CONSONANCE_THRESHOLD + (MAX_DISSONANCE - CONSONANCE_THRESHOLD) * (1 - this.fatigue);
+
+
+        let avg2, avg3, avg5, avg7, avg11;
+        avg2 = avg3 = avg5 = avg7 = avg11 = 0;
+
+        if (this.shortTermMemory.length !== 0) {
+            for (let pitch of this.shortTermMemory) {
+                avg2 += pitch.absoluteRatio.p2;
+                avg3 += pitch.absoluteRatio.p3;
+                avg5 += pitch.absoluteRatio.p5;
+                avg7 += pitch.absoluteRatio.p7;
+                avg11 += pitch.absoluteRatio.p11;
+            }
+
+            avg2 /= this.shortTermMemory.length;
+            avg3 /= this.shortTermMemory.length;
+            avg5 /= this.shortTermMemory.length;
+            avg7 /= this.shortTermMemory.length;
+            avg11 /= this.shortTermMemory.length;
+        }
+
+        let avgHC = new HarmonicCoordinates(avg2, avg3, avg5, avg7, avg11);
+        this.#tonalCenterUnscaledCoords = avgHC.toUnscaledCoords();
+        this.#dCenter_dRotator = avgHC.dUnscaledCoords_dRotation;
+    }
     /**
      * Register a new note from noteOn event.
      *
@@ -108,18 +187,19 @@ class HarmonicContext {
         // console.log(`using dissonanceMatrix: ${(new Date()) - t} ms`);
         // console.log(`Choosing`, bestFitRelativeNote, bestFitRatio);
 
-        let newAbsRatio = bestFitRatio.add(bestFitRelativeNote.functioningAs);
+        let newAbsRatio = bestFitRatio.add(bestFitRelativeNote.absoluteRatio);
 
         let existingPitch = this.getPitchByHarmCoords(newAbsRatio);
-        console.log(existingPitch);
-        if (existingPitch) {
-            // There are no new interpretations of this note.
-            // Don't change the harmonic context
-            // re-submit the existing
-            return [existingPitch.origin, existingPitch.relativeRatio];
+
+        let removeOffender = () => {
+            // note: this wasm function will not consider the last element of the freq array
+            //       to be the offender, since the last element is the most recent element.
+            let idxOfHighestDissonance = findOffender(this.stmFrequencies());
+            this.shortTermMemory.splice(idxOfHighestDissonance, 1);
         }
 
-        this.shortTermMemory.push(new Pitch(stepsFromA, bestFitRelativeNote, bestFitRatio));
+        if (!existingPitch)
+            this.shortTermMemory.push(new Pitch(stepsFromA, bestFitRelativeNote, bestFitRatio));
 
         // 3. If the new pitch clashes with any pitch by 1 diesis, remove the old pitch from STM.
 
@@ -135,18 +215,11 @@ class HarmonicContext {
 
         // t = new Date();
 
-        let removeOffender = () => {
-            // note: this wasm function will not consider the last element of the freq array
-            //       to be the offender, since the last element is the most recent element.
-            let idxOfHighestDissonance = findOffender(this.stmFrequencies());
-            this.shortTermMemory.splice(idxOfHighestDissonance, 1);
-        }
-
         if (this.shortTermMemory.length > MAX_SHORT_TERM_MEMORY)
             removeOffender();
 
         while (true) {
-            if(calculateDissonance(this.stmFrequencies()) > MAX_DISSONANCE)
+            if(calculateDissonance(this.stmFrequencies()) > this.effectiveMaxDiss)
                 removeOffender();
             else
                 break;
@@ -154,50 +227,40 @@ class HarmonicContext {
 
         // 5. Remove older notes which are too far out harmonically from this new note.
 
+        let highestHarmonicDistance = 0;
+        let sumHarmonicDistance = 0;
         for (let i = 0; i < this.shortTermMemory.length - 1; i++) {
             let p = this.shortTermMemory[i];
-            if (newAbsRatio.harmonicDistance(p) > MAX_HARMONIC_DISTANCE) {
+            let harmonicDistance = newAbsRatio.harmonicDistance(p.absoluteRatio);
+            if (harmonicDistance > highestHarmonicDistance)
+                highestHarmonicDistance = harmonicDistance;
+            sumHarmonicDistance += harmonicDistance;
+            if (harmonicDistance > MAX_HARMONIC_DISTANCE) {
                 this.shortTermMemory.splice(i, 1);
                 i--;
             }
         }
 
+        this.#maxHarmDist = highestHarmonicDistance;
+        if (this.shortTermMemory.length === 0)
+            this.#meanHarmDist = 0;
+        else
+            this.#meanHarmDist = sumHarmonicDistance / this.shortTermMemory.length;
 
         // console.log(`Using findOffender: ${(new Date()) - t} ms`);
 
         this.updateStatistics();
 
-        return [bestFitRelativeNote, bestFitRatio];
+        if (existingPitch)
+            return [existingPitch.origin, existingPitch.relativeRatio];
+        else
+            return [bestFitRelativeNote, bestFitRatio];
     }
 
-    get tonalCenterUnscaledCoords() {
-        return this.#tonalCenterUnscaledCoords;
-    }
-
-    // These coordinates may be used to set the viewport's center to the
-    // literal 'tonal center'. Not sure if this even results in anything
-    // useful though...
+    // Only put things that don't require constant updating inside this function.
+    // this function is called after a noteOn event is received.
     updateStatistics() {
-        let avg2, avg3, avg5, avg7, avg11;
-        avg2 = avg3 = avg5 = avg7 = avg11 = 0;
-
-        for (let pitch of this.shortTermMemory) {
-            avg2 += pitch.functioningAs.p2;
-            avg3 += pitch.functioningAs.p3;
-            avg5 += pitch.functioningAs.p5;
-            avg7 += pitch.functioningAs.p7;
-            avg11 += pitch.functioningAs.p11;
-        }
-
-        avg2 /= this.shortTermMemory.length;
-        avg3 /= this.shortTermMemory.length;
-        avg5 /= this.shortTermMemory.length;
-        avg7 /= this.shortTermMemory.length;
-        avg11 /= this.shortTermMemory.length;
-
-        let avgHC = new HarmonicCoordinates(avg2, avg3, avg5, avg7, avg11);
-
-        this.#tonalCenterUnscaledCoords = avgHC.toUnscaledCoords();
+        this.#dissonance = calculateDissonance(this.stmFrequencies());
     }
 
     stmFrequencies() {
@@ -209,11 +272,11 @@ class HarmonicContext {
     }
 
     containsHarmCoords(harmCoords) {
-        return this.shortTermMemory.some(x => x.functioningAs.equals(harmCoords));
+        return this.shortTermMemory.some(x => x.absoluteRatio.equals(harmCoords));
     }
 
     getPitchByHarmCoords(harmCoords) {
-        return this.shortTermMemory.filter(x => x.functioningAs.equals(harmCoords))[0] || null;
+        return this.shortTermMemory.filter(x => x.absoluteRatio.equals(harmCoords))[0] || null;
     }
 
     // in the event the HarmonicCoordinates get out of hand or something...
@@ -222,5 +285,6 @@ class HarmonicContext {
     reset() {
         this.shortTermMemory = [];
         this.#tonalCenterUnscaledCoords = [0, 0];
+        this.#dissonance = 0;
     }
 }

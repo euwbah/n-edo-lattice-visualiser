@@ -17,52 +17,77 @@ class Camera {
     targetCenterY = 0;
     centerX = 0;
     centerY = 0;
+    /**
+     * @type {HarmonicContext}
+     */
     #harmonicContext;
     zoom = MAX_ZOOM;
     zoomTarget = MAX_ZOOM;
+    #effectiveExponent = EXPONENT;
 
     constructor(harmonicContext) {
         this.#harmonicContext = harmonicContext;
     }
 
-    tick(stdDeviation) {
+    get effectiveExponent() {
+        return this.#effectiveExponent;
+    }
+
+    tick(stdDeviation, dRotator) {
         [this.targetCenterX, this.targetCenterY] = this.#harmonicContext.tonalCenterUnscaledCoords;
         let dt = deltaTime > 1000 ? 1000 : deltaTime;
-        this.centerX += (this.targetCenterX - this.centerX) * dt / 1000;
-        this.centerY += (this.targetCenterY - this.centerY) * dt / 1000;
+        this.centerX += (this.targetCenterX - this.centerX) * dt / 1000 * (1 + HAPPENINGNESS * 5) * CAM_SPEED;
+        this.centerY += (this.targetCenterY - this.centerY) * dt / 1000 * (1 + HAPPENINGNESS * 5) * CAM_SPEED;
+        // counter rotation:
+        let [dX_dRot, dY_dRot] = this.#harmonicContext.dCenterCoords_dRotator;
+        // move the camera an amount equal to the amount of translation caused by the
+        // rotation of the vectors.
+        // THIS WORKS. TRUST ME. IF YOU REMOVE THESE TWO LINES NOTHING WILL SHOW UP ON THE
+        // SCREEN AFTER SPAMMING TONS OF NOTES.
+        this.centerX += dX_dRot * dRotator;
+        this.centerY += dY_dRot * dRotator;
+
+        let targetExp = EXPONENT + HAPPENINGNESS * EXPONENT_GROWTH;
+        this.#effectiveExponent += (targetExp - this.#effectiveExponent) * dt / 800;
+
         let scaledDeviation = (stdDeviation - MAX_ZOOM_STD_DEV) / (MIN_ZOOM_STD_DEV - MAX_ZOOM_STD_DEV);
         scaledDeviation = Math.max(0, Math.min(1, scaledDeviation));
-        this.zoomTarget = MIN_ZOOM + (MAX_ZOOM - MIN_ZOOM) * (1 - scaledDeviation);
+        this.zoomTarget = (MIN_ZOOM + (MAX_ZOOM - MIN_ZOOM) * (1 - scaledDeviation)) * (1 - HAPPENINGNESS * ZOOM_SHRINK);
+        this.zoomTarget = Math.max(1, this.zoomTarget); // 1 is the absolute minimum zoom
         this.zoom += (this.zoomTarget - this.zoom) * dt / 1000;
     }
 
     // Project unscaled coordinates into cartesian coordinates from origin.
     project(unscaledCoordinates) {
         let [x, y] = unscaledCoordinates;
-        x = (x - this.centerX) * this.zoom;
-        y = (y - this.centerY) * this.zoom;
+        x = (x - this.centerX);
+        y = (y - this.centerY);
 
         if (PROJECTION_TYPE === 'curved') {
-            x = Math.pow(Math.abs(x), EXPONENT) * Math.sign(x);
-            y = Math.pow(Math.abs(y), EXPONENT) * Math.sign(y);
+            x = Math.pow(Math.abs(x), this.effectiveExponent) * Math.sign(x);
+            y = Math.pow(Math.abs(y), this.effectiveExponent) * Math.sign(y);
         }
+
+        x *= this.zoom;
+        y *= this.zoom;
 
         return [x, y];
     }
 
     projectScalar(scalar, unscaledCoordinates) {
         // method: multiply the scalar by the average of d(project(x))/d(x) and d(project(y))/d(y)
-        // d(p(x))/dx = zoom ^ exp * abs(x) ^ (EXP - 1)
+        // d(project(x))/dx = ???
         // defined for all x except x = 0
         // if x = 0, use dx = zoom.
         let [x, y] = unscaledCoordinates;
+        x = (x - this.centerX);
+        y = (y - this.centerY);
         let dx = this.zoom, dy = this.zoom;
-        let zoomConst = Math.pow(this.zoom, EXPONENT);
         if (x !== 0)
-            dx = zoomConst * Math.pow(Math.abs(x), EXPONENT - 1);
+            dx = dx * Math.pow(Math.abs(x), this.effectiveExponent - 1);
 
         if (y !== 0)
-            dy = zoomConst * Math.pow(Math.abs(y), EXPONENT - 1);
+            dy = dy * Math.pow(Math.abs(y), this.effectiveExponent - 1);
 
         if (dx > this.zoom)
             dx = this.zoom;
@@ -73,7 +98,9 @@ class Camera {
     }
 
     toScreenCoordinates(cartesian) {
-        return [cartesian[0] + windowWidth/2, windowHeight/2 - cartesian[1]];
+        let jitter = Math.pow(Math.max(0, HAPPENINGNESS - 0.50) / (1 - 0.50), 1.7) * 10;
+        return [cartesian[0] + windowWidth/2 + (Math.random() - 0.5) * jitter,
+                windowHeight/2 - cartesian[1] + (Math.random() - 0.5) * jitter];
     }
 }
 
@@ -129,6 +156,8 @@ class Ball {
 
         this.color = color(this.hue, this.saturation * chordToneMult, 100 * Math.pow(this.presence, 0.5));
         this.sizeUnscaled = Math.pow(this.presence, 0.5) * BALL_SIZE;
+
+        [this.x, this.y] = this.harmCoords.toUnscaledCoords();
     }
 
     /**
@@ -155,6 +184,20 @@ class BallsManager {
      * The mean of the standard deviation of the x and y coordinates of the balls.
      */
     #stddev = 0;
+    originBall;
+    harmonicCenterBall;
+
+    constructor() {
+
+    }
+
+    setup() {
+        this.originBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.1);
+        this.originBall.color = color(0, 10, 80);
+
+        this.harmonicCenterBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.1);
+        this.harmonicCenterBall.color = color(0, 60, 100);
+    }
 
     /**
      *
@@ -190,6 +233,9 @@ class BallsManager {
         if (xValues.length !== 0)
             this.#stddev = (math.std(xValues) + math.std(yValues)) / 2;
 
+        if (SHOW_DEBUG_BALLS) {
+            [this.harmonicCenterBall.x, this.harmonicCenterBall.y] = harmonicContext.tonalCenterUnscaledCoords;
+        }
     }
 
     /**
@@ -200,6 +246,11 @@ class BallsManager {
     draw(camera, graphics) {
         for (const [_, ball] of Object.entries(this.balls)) {
             ball.draw(camera, graphics);
+        }
+
+        if (SHOW_DEBUG_BALLS) {
+            this.originBall.draw(camera, graphics);
+            this.harmonicCenterBall.draw(camera, graphics);
         }
     }
 
@@ -270,13 +321,15 @@ class Scaffolding {
         }
 
         this.color.setAlpha(Math.pow(this.presence, 0.8));
-        this.thickness = Math.pow(this.presence, 0.9) * LINE_THICKNESS;
+        this.thickness = Math.pow(this.presence, 0.9) * (LINE_THICKNESS + 0.2 * HAPPENINGNESS);
     }
 
     tick() {
         this.presence = this.reasonForExisting.presence;
         this.color.setAlpha(Math.pow(this.presence, 0.8));
-        this.thickness = Math.pow(this.presence, 0.9) * LINE_THICKNESS;
+        this.thickness = Math.pow(this.presence, 0.9) * (LINE_THICKNESS + 0.2 * HAPPENINGNESS);
+        [this.fromX, this.fromY] = this.fromHarmCoords.toUnscaledCoords();
+        [this.toX, this.toY] = this.toHarmCoords.toUnscaledCoords();
     }
 
     /**
