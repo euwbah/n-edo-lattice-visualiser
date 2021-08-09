@@ -157,6 +157,10 @@ class HarmonicCoordinates {
         return fundamental * 2**p2 * 3**this.p3 * 5**this.p5 * 7**this.p7 * 11**this.p11;
     }
 
+    toMonzoString() {
+        return `[ ${this.toArray().join(" ")} >`;
+    }
+
     toString() {
         return this.toArray().toString();
     }
@@ -340,3 +344,13 @@ function convertStepsToPossibleCoord(steps) {
     // objects so it is now ok to modify the returned coordinates from this function.
     return RATIOS31[dieses].map(x => x.add(new HarmonicCoordinates(octaves, 0, 0, 0, 0)));
 }
+
+const DIESES_TO_FIFTHS_MAP = (() => {
+    let x = {};
+    let d = 0;
+    for (let fifths = 0; fifths < 31; fifths++) {
+        x[d] = fifths;
+        d = (d + 18) % 31;
+    }
+    return x;
+})();

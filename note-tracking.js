@@ -17,7 +17,7 @@ let clearHarmonicContextTimeoutID = null;
 
 function countExistingKeysState() {
     let held = 0, sustained = 0;
-    for (let [k, v] of Object.entries(KEYS_STATE)) {
+    for (let [_, v] of Object.entries(KEYS_STATE)) {
         if (v.fromSustainPedal)
             sustained++;
         else
@@ -55,6 +55,15 @@ function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManage
     }
 }
 
+function startKeyCenterResetTimer() {
+    if (Object.keys(KEYS_STATE).length === 0 && clearHarmonicContextTimeoutID === null) {
+        clearHarmonicContextTimeoutID = setTimeout(() => {
+            harmonicContext.reset();
+            clearHarmonicContextTimeoutID = null;
+        }, RESET_TIME_SECS * 1000);
+    }
+}
+
 function noteOff(stepsFromA, vel) {
     // console.log('received note off: ', stepsFromA, vel);
     if (SUSTAIN_STATE) {
@@ -63,13 +72,7 @@ function noteOff(stepsFromA, vel) {
         delete KEYS_STATE[stepsFromA];
     }
 
-    // If no notes for 10 seconds, reset harmonic context to prevent intervals from getting out of hand.
-    if (Object.keys(KEYS_STATE).length === 0 && clearHarmonicContextTimeoutID === null) {
-        clearHarmonicContextTimeoutID = setTimeout(() => {
-            harmonicContext.reset();
-            clearHarmonicContextTimeoutID = null;
-        }, RESET_TIME_SECS * 1000);
-    }
+    startKeyCenterResetTimer();
 }
 
 function cc(cc, value) {
@@ -84,6 +87,7 @@ function cc(cc, value) {
             for (let x of sustainedNotes) {
                 delete KEYS_STATE[x];
             }
+            startKeyCenterResetTimer();
         }
     }
 }

@@ -19,12 +19,23 @@ class Pitch {
      * @type {HarmonicCoordinates}
      */
     relativeRatio;
+    /**
+     * A pitch gets struck out once when a new note enters the pitch memory
+     * Octaves of existing notes are not regarded as new notes.
+     * @type {number}
+     */
+    strikeCounter = 0;
+    /**
+     * Stores the epoch time this note was most recently played.
+     */
+    noteOnTime;
 
     constructor(stepsFromA, origin, relativeRatio) {
         this.stepsFromA = stepsFromA;
         this.frequency = 440 * 2 ** (stepsFromA / 31);
         this.origin = origin;
         this.relativeRatio = relativeRatio;
+        this.noteOnTime = new Date();
         if (origin)
             this.absoluteRatio = this.origin.absoluteRatio.add(this.relativeRatio);
         else {
@@ -36,11 +47,15 @@ class Pitch {
 
 // The harmonic context represents the 'tonal center'
 // for which all new notes will be judged with respect to,
-// and each addition of a new note will
+// and each addition of a new note will cause the harmonic centroid
+// (i.e. the 'key center') to update.
 class HarmonicContext {
-    // modelling the harmonic tonal space of the brain in short term memory
+    #avgHc = new HarmonicCoordinates(0,0,0,0,0);
     #tonalCenterUnscaledCoords = [0, 0];
     #dCenter_dRotator = [0, 0];
+    /**
+     * @type {[Pitch]}
+     */
     shortTermMemory = [];
     #dissonance = 0;
     #effectiveMaxDiss = MAX_DISSONANCE;
@@ -52,10 +67,24 @@ class HarmonicContext {
     #maxHarmDist = 0;
     #meanHarmDist = 0;
     /**
-     * Repeated comma shifts can cause the lattice to appear extremely haywire
+     * A false origin chosen such that the ratios (w.r.t. effectiveOrigin) of the notes on screen
+     * is as simple as possible (minimal monzo numbers).
+     *
+     * NOTE: The centroid (this.#tonalCenterUnscaledCoords) of the Harmonic Context structure
+     * is not determined with this method, instead it is determined using the standard centroid
+     * algorithm: the mean of each axis of each pitch in the harmonic context.
+     *
+     * The difference between the effectiveOrigin and the centroid HarmonicCoordinates is that
+     * the effectiveOrigin has it's harmonic coordinates rounded to the nearest whole number.
      * @type {HarmonicCoordinates}
      */
     #effectiveOrigin = new HarmonicCoordinates(0,0,0,0,0);
+
+    /**
+     * The mean fifth value (0 is A) of the notes in the shortTermMemory, rounded to the nearest whole.
+     * @type {number}
+     */
+    #centralFifth = 0;
 
     constructor() {
 
@@ -81,13 +110,24 @@ class HarmonicContext {
         return this.#meanHarmDist;
     }
 
-
     get tonalCenterUnscaledCoords() {
         return this.#tonalCenterUnscaledCoords;
     }
 
     get dCenterCoords_dRotator() {
         return this.#dCenter_dRotator;
+    }
+
+    get stmFrequencies() {
+        return this.shortTermMemory.map(x => x.frequency);
+    }
+
+    get effectiveOrigin() {
+        return this.#effectiveOrigin;
+    }
+
+    get centralFifth() {
+        return this.#centralFifth;
     }
 
     tick() {
@@ -101,29 +141,18 @@ class HarmonicContext {
         }
         this.#effectiveMaxDiss = CONSONANCE_THRESHOLD + (MAX_DISSONANCE - CONSONANCE_THRESHOLD) * (1 - this.fatigue);
 
+        this.#tonalCenterUnscaledCoords = this.#avgHc.toUnscaledCoords();
+        this.#dCenter_dRotator = this.#avgHc.dUnscaledCoords_dRotation;
 
-        let avg2, avg3, avg5, avg7, avg11;
-        avg2 = avg3 = avg5 = avg7 = avg11 = 0;
-
-        if (this.shortTermMemory.length !== 0) {
-            for (let pitch of this.shortTermMemory) {
-                avg2 += pitch.absoluteRatio.p2;
-                avg3 += pitch.absoluteRatio.p3;
-                avg5 += pitch.absoluteRatio.p5;
-                avg7 += pitch.absoluteRatio.p7;
-                avg11 += pitch.absoluteRatio.p11;
+        // Remove old notes that are forgotten.
+        let now = new Date();
+        for (let i = 0; i < this.shortTermMemory.length; i++) {
+            let p = this.shortTermMemory[i];
+            if (now - p.noteOnTime > MAX_DURATION_BEFORE_FORGET_SECS * 1000) {
+                this.shortTermMemory.splice(i, 1);
+                i --;
             }
-
-            avg2 /= this.shortTermMemory.length;
-            avg3 /= this.shortTermMemory.length;
-            avg5 /= this.shortTermMemory.length;
-            avg7 /= this.shortTermMemory.length;
-            avg11 /= this.shortTermMemory.length;
         }
-
-        let avgHC = new HarmonicCoordinates(avg2, avg3, avg5, avg7, avg11);
-        this.#tonalCenterUnscaledCoords = avgHC.toUnscaledCoords();
-        this.#dCenter_dRotator = avgHC.dUnscaledCoords_dRotation;
     }
     /**
      * Register a new note from noteOn event.
@@ -149,7 +178,7 @@ class HarmonicContext {
         // with respect to each of the existing 31 edo pitches to solve the ambiguity of the harmonic function
         // of the newly added note.
 
-        let stmFreqs = this.stmFrequencies();
+        let stmFreqs = this.stmFrequencies;
 
         /**
          * @type {Pitch}
@@ -190,16 +219,21 @@ class HarmonicContext {
         let newAbsRatio = bestFitRatio.add(bestFitRelativeNote.absoluteRatio);
 
         let existingPitch = this.getPitchByHarmCoords(newAbsRatio);
+        let newPitchIsOctaveOfExistingPitches = this.containsOctavesOfNote(stepsFromA);
 
         let removeOffender = () => {
             // note: this wasm function will not consider the last element of the freq array
             //       to be the offender, since the last element is the most recent element.
-            let idxOfHighestDissonance = findOffender(this.stmFrequencies());
+            let idxOfHighestDissonance = findOffender(this.stmFrequencies);
             this.shortTermMemory.splice(idxOfHighestDissonance, 1);
         }
 
-        if (!existingPitch)
+        if (!existingPitch) {
             this.shortTermMemory.push(new Pitch(stepsFromA, bestFitRelativeNote, bestFitRatio));
+        } else {
+           // If this note is existing already, refresh its countdown timer.
+           existingPitch.noteOnTime = new Date();
+        }
 
         // 3. If the new pitch clashes with any pitch by 1 diesis, remove the old pitch from STM.
 
@@ -219,7 +253,7 @@ class HarmonicContext {
             removeOffender();
 
         while (true) {
-            if(calculateDissonance(this.stmFrequencies()) > this.effectiveMaxDiss)
+            if(calculateDissonance(this.stmFrequencies) > this.effectiveMaxDiss)
                 removeOffender();
             else
                 break;
@@ -238,6 +272,17 @@ class HarmonicContext {
             if (harmonicDistance > MAX_HARMONIC_DISTANCE) {
                 this.shortTermMemory.splice(i, 1);
                 i--;
+                continue;
+            }
+
+            // 6. At the same time, update the strike counter and remove accordingly.
+            if (!newPitchIsOctaveOfExistingPitches) {
+                p.strikeCounter ++;
+
+                if (p.strikeCounter > MAX_NEW_NOTES_BEFORE_FORGET) {
+                    this.shortTermMemory.splice(i, 1);
+                    i--;
+                }
             }
         }
 
@@ -260,23 +305,83 @@ class HarmonicContext {
     // Only put things that don't require constant updating inside this function.
     // this function is called after a noteOn event is received.
     updateStatistics() {
-        this.#dissonance = calculateDissonance(this.stmFrequencies());
-    }
+        this.#dissonance = calculateDissonance(this.stmFrequencies);
 
-    stmFrequencies() {
-        return this.shortTermMemory.map(x => x.frequency);
+        let avg2, avg3, avg5, avg7, avg11;
+        avg2 = avg3 = avg5 = avg7 = avg11 = 0;
+
+        // The fifths are in a circle. That means the arithmetic mean can't be used
+        // to calculate the mean fifth as how the average of 30 degrees and 330 degrees
+        // is NOT 180 degrees, but 0 degrees.
+        // To do this, convert the value of the fifths into an angle spanning 0 to 2pi radians,
+        // convert the angle into arbitrary cartesian coordinates along a unit circle,
+        // then find the centroid of the coordinates,
+        // then convert the coordinates back into an angle using atan2.
+        // https://en.wikipedia.org/wiki/Circular_mean
+        let avgFifthX = 0;
+        let avgFifthY = 0;
+
+        if (this.shortTermMemory.length !== 0) {
+            for (let pitch of this.shortTermMemory) {
+                avg2 += pitch.absoluteRatio.p2;
+                avg3 += pitch.absoluteRatio.p3;
+                avg5 += pitch.absoluteRatio.p5;
+                avg7 += pitch.absoluteRatio.p7;
+                avg11 += pitch.absoluteRatio.p11;
+                let fifths = DIESES_TO_FIFTHS_MAP[mod(pitch.stepsFromA, 31)];
+                let radians = fifths / 31 * Math.PI * 2;
+                avgFifthX += Math.cos(radians);
+                avgFifthY += Math.sin(radians);
+            }
+
+            avg2 /= this.shortTermMemory.length;
+            avg3 /= this.shortTermMemory.length;
+            avg5 /= this.shortTermMemory.length;
+            avg7 /= this.shortTermMemory.length;
+            avg11 /= this.shortTermMemory.length;
+            avgFifthX /= this.shortTermMemory.length;
+            avgFifthY /= this.shortTermMemory.length;
+        }
+
+        this.#avgHc = new HarmonicCoordinates(avg2, avg3, avg5, avg7, avg11);
+        this.#effectiveOrigin = new HarmonicCoordinates(
+            Math.round(avg2), Math.round(avg3), Math.round(avg5), Math.round(avg7), Math.round(avg11)
+        );
+
+        if (avgFifthX === 0 && avgFifthY === 0) {
+            // In the very impossible case that the notes in the harmonic context are
+            // perfectly evenly distributed around the circle of fifths, just assume the key center to be A.
+            this.#centralFifth = 0;
+        } else {
+            let centralFifthRadians = Math.atan2(avgFifthY, avgFifthX);
+            // mod is necessary as central fifth radians returns negative for angles above 180.
+            this.#centralFifth = mod(Math.round(31 * centralFifthRadians / (2 * Math.PI)), 31);
+        }
     }
 
     containsNote(stepsFromA) {
         return this.shortTermMemory.some(x => x.stepsFromA === stepsFromA);
     }
 
+    containsOctavesOfNote(stepsFromA) {
+        let octRed = mod(stepsFromA, 31);
+        return this.shortTermMemory.some(x => mod(x.stepsFromA, 31) === stepsFromA);
+    }
+
     containsHarmCoords(harmCoords) {
         return this.shortTermMemory.some(x => x.absoluteRatio.equals(harmCoords));
     }
 
+    /**
+     * @param {HarmonicCoordinates} harmCoords
+     * @returns {Pitch|null}
+     */
     getPitchByHarmCoords(harmCoords) {
         return this.shortTermMemory.filter(x => x.absoluteRatio.equals(harmCoords))[0] || null;
+    }
+
+    relativeToEffectiveOrigin(absoluteCoords) {
+        return absoluteCoords.subtract(this.#effectiveOrigin);
     }
 
     // in the event the HarmonicCoordinates get out of hand or something...
@@ -284,7 +389,12 @@ class HarmonicContext {
     // there are no balls or scaffolding rendered.
     reset() {
         this.shortTermMemory = [];
+        this.#avgHc = new HarmonicCoordinates(0,0,0,0,0);
         this.#tonalCenterUnscaledCoords = [0, 0];
         this.#dissonance = 0;
+        // this.#centralFifth = 0; don't reset fifths since it's probable the key will stay the same.
+        this.#effectiveOrigin = new HarmonicCoordinates(0,0,0,0,0);
+        this.#meanHarmDist = 0;
+        this.#maxHarmDist = 0;
     }
 }

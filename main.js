@@ -4,6 +4,7 @@ const ballManager = new BallsManager();
 const scaffoldingManager = new ScaffoldingManager();
 const harmonicContext = new HarmonicContext();
 const camera = new Camera(harmonicContext);
+const keyCenterParticleFountain = new KeyCenterParticleFountain();
 
 socket.onmessage = (e) => {
     // only start reading socket messages when window.essentia is defined
@@ -93,14 +94,18 @@ function draw() {
     addHappeningness(deltaTime / 4000 * (held * HELD_NOTE_HAPPENINGNESS + sustained * SUSTAINED_NOTE_HAPPENINGNESS));
     HAPPENINGNESS = Math.max(0, HAPPENINGNESS - Math.pow(HAPPENINGNESS * deltaTime / 2000, 1.1));
 
-    let dRotator = (Math.pow(Math.max(0, (HAPPENINGNESS - 0.1) / 0.9), 2) - ROTATOR / (1 + 2 * HAPPENINGNESS * 10)) * deltaTime / 500 * (1 - HAPPENINGNESS);
+    let dRotator = (Math.pow(Math.max(0, (HAPPENINGNESS - ROTATOR_START) / (1 - ROTATOR_START)), 2)
+                        - ROTATOR / (1 + 2 * HAPPENINGNESS * MAX_ROTATION_AMOUNT))
+                    * deltaTime / 500 * (1 - HAPPENINGNESS) * ROTATOR_SPEED;
     ROTATOR += dRotator;
 
     harmonicContext.tick();
     ballManager.tick(KEYS_STATE, harmonicContext);
     scaffoldingManager.tick();
     camera.tick(ballManager.stdDeviation, dRotator);
+    keyCenterParticleFountain.tick(harmonicContext, dRotator, camera);
 
+    keyCenterParticleFountain.draw(camera, GRAPHICS);
     scaffoldingManager.draw(camera, GRAPHICS);
     ballManager.draw(camera, GRAPHICS);
 
@@ -156,17 +161,20 @@ function draw() {
 
     textSize(20);
     fill(0, 0, 100)
+    textSize(17);
     text(VERSION, 10, 30);
     if (DEBUG) {
         text(`fps: ${(1 / (deltaTime / 1000)).toFixed(1)} ` +
             `camera: ${camera.centerX.toFixed(1)}, ${camera.centerY.toFixed(1)}, ` +
             `zoom: ${camera.zoom.toFixed(1)}, std dev: ${ballManager.stdDeviation.toFixed(2)}`,
-            10, 60);
+            10, 55);
         text(`happening: ${HAPPENINGNESS.toFixed(3)}, diss: ${harmonicContext.dissonance.toFixed(2)} ` +
             `/ ${harmonicContext.effectiveMaxDiss.toFixed(2)} [${harmonicContext.shortTermMemory.length}]`,
-            10, 90);
-        text(`harm dist max: ${harmonicContext.maxHarmonicDistance.toFixed(2)}, mean: ${harmonicContext.meanHarmonicDistance.toFixed(2)}`,
-            10, 120)
+            10, 80);
+        text(`harm dist max: ${harmonicContext.maxHarmonicDistance.toFixed(2)}, ` +
+            `mean: ${harmonicContext.meanHarmonicDistance.toFixed(2)}`,
+            10, 105);
+        text(`${harmonicContext.effectiveOrigin.toMonzoString()}`, 10, 130);
     }
 }
 
