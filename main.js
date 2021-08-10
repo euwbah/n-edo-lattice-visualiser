@@ -52,6 +52,8 @@ function setup() {
     smooth();
     setAttributes('antialias', true);
     textFont(FIRA_SANS);
+    GRAPHICS.textFont(FIRA_SANS);
+    GRAPHICS.setAttributes('antialias', true);
 
     ballManager.setup();
 
@@ -76,15 +78,26 @@ function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
     resizeGraphicsTimeout = setTimeout(() => {
         GRAPHICS = createGraphics(windowWidth, windowHeight, WEBGL);
+        GRAPHICS.colorMode(HSB, 360, 100, 100, 1);
+        GRAPHICS.textFont(FIRA_SANS);
+        GRAPHICS.setAttributes('antialias', true);
+        GRAPHICS.colorMode(HSB, 360, 100, 100, 1);
         hBlurPass1 = createGraphics(windowWidth, windowHeight, WEBGL);
         vBlurPass2 = createGraphics(windowWidth, windowHeight, WEBGL);
         bloomPass3 = createGraphics(windowWidth, windowHeight, WEBGL);
         blurPass4 = createGraphics(windowWidth, windowHeight, WEBGL);
         blurPass5 = createGraphics(windowWidth, windowHeight, WEBGL);
         bloomPass6 = createGraphics(windowWidth, windowHeight, WEBGL);
+        hBlurPass1.noStroke();
+        vBlurPass2.noStroke();
+        bloomPass3.noStroke();
+        blurPass4.noStroke();
+        bloomPass6.noStroke();
         resizeGraphicsTimeout = null;
     }, 500);
 }
+
+let oldDRotator = 0;
 
 function draw() {
     background(0);
@@ -97,7 +110,10 @@ function draw() {
     let dRotator = (Math.pow(Math.max(0, (HAPPENINGNESS - ROTATOR_START) / (1 - ROTATOR_START)), 2)
                         - ROTATOR / (1 + 2 * HAPPENINGNESS * MAX_ROTATION_AMOUNT))
                     * deltaTime / 500 * (1 - HAPPENINGNESS) * ROTATOR_SPEED;
+    dRotator = dRotator * (1 - ROTATOR_INERTIA) + oldDRotator * ROTATOR_INERTIA;
     ROTATOR += dRotator;
+    oldDRotator = dRotator;
+
 
     harmonicContext.tick();
     ballManager.tick(KEYS_STATE, harmonicContext);
@@ -159,22 +175,25 @@ function draw() {
         image(GRAPHICS, 0, 0, windowWidth, windowHeight);
     }
 
+    textAlign(LEFT, TOP);
     textSize(20);
     fill(0, 0, 100)
-    textSize(17);
-    text(VERSION, 10, 30);
+    text(VERSION, 10, 10);
     if (DEBUG) {
+        textSize(17);
         text(`fps: ${(1 / (deltaTime / 1000)).toFixed(1)} ` +
             `camera: ${camera.centerX.toFixed(1)}, ${camera.centerY.toFixed(1)}, ` +
             `zoom: ${camera.zoom.toFixed(1)}, std dev: ${ballManager.stdDeviation.toFixed(2)}`,
-            10, 55);
+            10, 40);
         text(`happening: ${HAPPENINGNESS.toFixed(3)}, diss: ${harmonicContext.dissonance.toFixed(2)} ` +
-            `/ ${harmonicContext.effectiveMaxDiss.toFixed(2)} [${harmonicContext.shortTermMemory.length}]`,
-            10, 80);
+            `/ ${harmonicContext.effectiveMaxDiss.toFixed(2)} [${harmonicContext.shortTermMemory.length}], ` +
+            `rot: ${dRotator.toFixed(5)}`,
+            10, 65);
         text(`harm dist max: ${harmonicContext.maxHarmonicDistance.toFixed(2)}, ` +
             `mean: ${harmonicContext.meanHarmonicDistance.toFixed(2)}`,
-            10, 105);
-        text(`${harmonicContext.effectiveOrigin.toMonzoString()}`, 10, 130);
+            10, 90);
+        textSize(23);
+        text(`${harmonicContext.effectiveOrigin.toMonzoString()}`, 10, 120);
     }
 }
 

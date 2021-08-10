@@ -1,6 +1,8 @@
-const VERSION = 'v0.1.5'
+const VERSION = 'v0.1.6'
 let DEBUG = true;
 let SHOW_DEBUG_BALLS = true;
+
+const USE_OCTAVE_REDUCED_PRIMES = true;
 
 // TODO: Work these constants out
 let P2_angle = 90;
@@ -98,11 +100,46 @@ let CHORD_TONE_EFFECT = 0.7;
 
 let RESET_TIME_SECS = 1;
 
+/**
+ * The minimum duration (in seconds) between changes in effectiveOrigin.
+ * @type {number}
+ */
+let FASTEST_KEY_CHANGE_SECS = 1.5;
+
+/**
+ * Sets effectiveOrigin such that the highest power of 2 permissible in the denominator
+ * of the relative ratios of all the notes in the key center is as such.
+ * @type {number}
+ */
+let HIGHEST_REL_P2_DENOM = 4;
+
+/**
+ * Sets effectiveOrigin such that the highest power of 3 permissible in the denominator
+ * of the relative ratios of all the notes in the key center is as such.
+ * @type {number}
+ */
+let HIGHEST_REL_P3_DENOM = 1;
+
+/**
+ * Display the interval of the notes on the balls.
+ * relmonzo: Display as a monzo relative to the effectiveOrigin
+ * relfraction: Display as a fraction relative to the effectiveOrigin.
+ * none: don't display the interval.
+ * @type {'relmonzo'|'relfraction'|'none'}
+ */
+let TEXT_TYPE = 'relfraction';
+/**
+ * Set the minimum size of the ball text display.
+ * @type {number}
+ */
+let MIN_TEXT_SIZE_PX = 14;
+let MAX_TEXT_SIZE_PX = 25;
+
 let PROJECTION_TYPE = 'curved';
 let MAX_ZOOM = 65;
-let MIN_ZOOM = 10;
+let MIN_ZOOM = 12;
 let MAX_ZOOM_STD_DEV = 1;
-let MIN_ZOOM_STD_DEV = 11;
+let MIN_ZOOM_STD_DEV = 20;
 /**
  * When in 'curved' projection mode, the coordinates of the entities will be set to the
  * power of this exponent.
@@ -114,7 +151,7 @@ let EXPONENT_GROWTH = 0.4;
 /** How fast the zoom can change */
 let ZOOM_CHANGE_SPEED = 0.9;
 /** How much zoom can shrink (as a ratio of overall zoom) proportional to happeningness*/
-let ZOOM_SHRINK = 0.1;
+let ZOOM_SHRINK = 0.4;
 /** 1 is the average speed*/
 let CAM_SPEED = 0.6;
 /** Maximum additional cam speed depending on current happeningness*/
@@ -127,6 +164,12 @@ let CAM_SPEED_HAPPENINGNESS = 3.8;
 let ROTATOR_START = 0.15;
 let MAX_ROTATION_AMOUNT = 10;
 let ROTATOR_SPEED = 1.2; // Changing the rotator speed also scales the max rotation amount.
+/**
+ * The fraction of the current rotator speed that is present from the previous rotator speed
+ * rot speed = inertia * old speed + (1 - inertia) * new speed
+ * @type {number}
+ */
+let ROTATOR_INERTIA = 0.3;
 
 // Rotational lag happens when the ROTATOR is changing
 // and the current camera position is far from the absolute origin,

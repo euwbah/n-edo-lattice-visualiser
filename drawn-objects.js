@@ -139,6 +139,7 @@ class Camera {
 
 class Ball {
     harmCoords;
+    relativeHarmCoords;
     presence; // Number from 0-1
     stepsFromA;
     x;
@@ -148,6 +149,7 @@ class Ball {
     color;
     sizeUnscaled;
     isChordTone = true;
+    isDebug = false; // set this manuallyg to true if the ball is debug and has no relativeHarmCoords.
 
     constructor(harmCoords, stepsFromA, presence) {
         // Note: this is in Hue Saturation Brightness format
@@ -163,6 +165,11 @@ class Ball {
         this.sizeUnscaled = Math.pow(presence, 0.5) * BALL_SIZE;
     }
 
+    /**
+     *
+     * @param {KEYS_STATE} keyState
+     * @param {HarmonicContext} harmonicContext
+     */
     tick(keyState, harmonicContext) {
         this.isChordTone = harmonicContext.containsNote(this.stepsFromA);
         if (this.stepsFromA in keyState) {
@@ -191,6 +198,8 @@ class Ball {
         this.sizeUnscaled = Math.pow(this.presence, 0.5) * BALL_SIZE;
 
         [this.x, this.y] = this.harmCoords.toUnscaledCoords();
+
+        this.relativeHarmCoords = harmonicContext.relativeToEffectiveOrigin(this.harmCoords);
     }
 
     /**
@@ -205,6 +214,21 @@ class Ball {
         graphics.noStroke();
         graphics.fill(this.color);
         graphics.circle(x, y, size);
+
+        if (!this.isDebug) {
+            graphics.fill(hue(this.color), 35, 100, 1);
+            graphics.textAlign(CENTER, CENTER);
+            let tSize = Math.max(MIN_TEXT_SIZE_PX, Math.min(MAX_TEXT_SIZE_PX, size * 0.6));
+            graphics.textSize(tSize);
+            if (TEXT_TYPE === 'relmonzo') {
+                graphics.text(this.relativeHarmCoords.toMonzoString(), x, y + size);
+            } else if (TEXT_TYPE === 'relfraction') {
+                let [num, den] = this.relativeHarmCoords.toRatio();
+                graphics.text(num, x, y + size - 5);
+                graphics.text(`__`, x, y + size - 5 + tSize * 0.1);
+                graphics.text(den, x, y + size - 5 + tSize);
+            }
+        }
     }
 }
 
@@ -227,9 +251,11 @@ class BallsManager {
     setup() {
         this.originBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.05);
         this.originBall.color = color(0, 10, 80);
+        this.originBall.isDebug = true;
 
         this.harmonicCenterBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.05);
         this.harmonicCenterBall.color = color(0, 60, 100);
+        this.harmonicCenterBall.isDebug = true;
     }
 
     /**
@@ -354,7 +380,6 @@ class KeyCenterParticleFountain {
 
     #createNewParticle(harmonicContext, dXdueToRot, dYdueToRot) {
         let hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / 31 * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
-        console.log(harmonicContext.centralFifth, hue);
         let speed = PARTICLE_MIN_SPEED + Math.random() * (PARTICLE_MAX_SPEED - PARTICLE_MIN_SPEED);
         let angle = Math.random() * Math.PI * 2;
         let dx = speed * Math.cos(angle);

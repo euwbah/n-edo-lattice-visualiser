@@ -28,10 +28,10 @@ const P3_X = () => Math.cos(toRad(P3_angle) + ROTATOR * Math.log2(3)) * (P3_len)
 const P3_Y = () => Math.sin(toRad(P3_angle) + ROTATOR * Math.log2(3)) * (P3_len);
 const P5_X = () => Math.cos(toRad(P5_angle) + ROTATOR * Math.log2(5)) * (P5_len);
 const P5_Y = () => Math.sin(toRad(P5_angle) + ROTATOR * Math.log2(5)) * (P5_len);
-const P7_X = () => Math.cos(toRad(P7_angle) + ROTATOR * Math.log2(7)) * (P7_len);
-const P7_Y = () => Math.sin(toRad(P7_angle) + ROTATOR * Math.log2(7)) * (P7_len);
-const P11_X = () => Math.cos(toRad(P11_angle) + ROTATOR * Math.log2(11)) * (P11_len);
-const P11_Y = () => Math.sin(toRad(P11_angle) + ROTATOR * Math.log2(11)) * (P11_len);
+const P7_X = () => Math.cos(toRad(-P7_angle) + ROTATOR * Math.log2(7)) * (P7_len);
+const P7_Y = () => Math.sin(toRad(-P7_angle) + ROTATOR * Math.log2(7)) * (P7_len);
+const P11_X = () => Math.cos(toRad(-P11_angle) + ROTATOR * Math.log2(11)) * (P11_len);
+const P11_Y = () => Math.sin(toRad(-P11_angle) + ROTATOR * Math.log2(11)) * (P11_len);
 
 const dp2drotx = () => -P2_len * Math.log2(2) * Math.sin(toRad(P2_angle) + ROTATOR * Math.log2(2));
 const dp2droty = () => P2_len * Math.log2(2) * Math.cos(toRad(P2_angle) + ROTATOR * Math.log2(2));
@@ -39,24 +39,43 @@ const dp3drotx = () => -P3_len * Math.log2(3) * Math.sin(toRad(P3_angle) + ROTAT
 const dp3droty = () => P3_len * Math.log2(3) * Math.cos(toRad(P3_angle) + ROTATOR * Math.log2(3));
 const dp5drotx = () => -P5_len * Math.log2(5) * Math.sin(toRad(P5_angle) + ROTATOR * Math.log2(5));
 const dp5droty = () => P5_len * Math.log2(5) * Math.cos(toRad(P5_angle) + ROTATOR * Math.log2(5));
-const dp7drotx = () => -P7_len * Math.log2(7) * Math.sin(toRad(P7_angle) + ROTATOR * Math.log2(7));
-const dp7droty = () => P7_len * Math.log2(7) * Math.cos(toRad(P7_angle) + ROTATOR * Math.log2(7));
-const dp11drotx = () => -P11_len * Math.log2(11) * Math.sin(toRad(P11_angle) + ROTATOR * Math.log2(11));
-const dp11droty = () => P11_len * Math.log2(11) * Math.cos(toRad(P11_angle) + ROTATOR * Math.log2(11));
+const dp7drotx = () => -P7_len * Math.log2(7) * Math.sin(toRad(-P7_angle) + ROTATOR * Math.log2(7));
+const dp7droty = () => P7_len * Math.log2(7) * Math.cos(toRad(-P7_angle) + ROTATOR * Math.log2(7));
+const dp11drotx = () => -P11_len * Math.log2(11) * Math.sin(toRad(-P11_angle) + ROTATOR * Math.log2(11));
+const dp11droty = () => P11_len * Math.log2(11) * Math.cos(toRad(-P11_angle) + ROTATOR * Math.log2(11));
 
 class HarmonicCoordinates {
+    #p2; #p3; #p5; #p7; #p11;
+
     constructor(p2, p3, p5, p7, p11) {
         // Note, if USE_OCTAVE_REDUCED_PRIMES is true,
         // p3 represents powers of 3/2,
         // p5 - 5/4,
         // p7 - 7/4
         // p11 - 11/8
-        this.p2 = p2;
-        this.p3 = p3;
-        this.p5 = p5;
-        this.p7 = p7;
-        this.p11 = p11;
+        this.#p2 = p2;
+        this.#p3 = p3;
+        this.#p5 = p5;
+        this.#p7 = p7;
+        this.#p11 = p11;
     }
+
+    get p2() { return this.#p2; }
+
+    /**
+     * The absolute power of the prime 2 in the interval assuming no octave reduced primes.
+     * Helpful for performing math calculations.
+     */
+    get p2absolute() {
+        if (USE_OCTAVE_REDUCED_PRIMES)
+            return this.#p2 - (this.#p3 + 2 * this.#p5 + 2 * this.#p7 + 3 * this.#p11);
+        else
+            return this.#p2;
+    }
+    get p3() { return this.#p3; }
+    get p5() { return this.#p5; }
+    get p7() { return this.#p7; }
+    get p11() { return this.#p11; }
 
     add(hc) {
         return new HarmonicCoordinates(
@@ -118,9 +137,7 @@ class HarmonicCoordinates {
         let num = 1, den = 1;
 
         let primes = [2, 3, 5, 7, 11];
-        let powers = this.toArray();
-        if (USE_OCTAVE_REDUCED_PRIMES)
-            powers[0] -= powers[1] + powers[2] * 2 + powers[3] * 2 + powers[4] * 3
+        let powers = this.toArrayAbsolute();
         for (let i = 0; i <= 5; i++) {
             if (powers[i] > 0)
                 num *= primes[i] ** powers[i];
@@ -151,14 +168,15 @@ class HarmonicCoordinates {
     }
 
     toFrequency(fundamental) {
-        let p2 = this.p2;
-        if (USE_OCTAVE_REDUCED_PRIMES)
-            p2 -= this.p3 + 2 * this.p5 + 2 * this.p7 + 3 * this.p11;
-        return fundamental * 2**p2 * 3**this.p3 * 5**this.p5 * 7**this.p7 * 11**this.p11;
+        return fundamental * 2**this.p2absolute * 3**this.p3 * 5**this.p5 * 7**this.p7 * 11**this.p11;
     }
 
+    /**
+     * Monzos always assume non-octave reduced primes.
+     * @returns {string}
+     */
     toMonzoString() {
-        return `[ ${this.toArray().join(" ")} >`;
+        return `[ ${this.toArrayAbsolute().join(" ")} >`;
     }
 
     toString() {
@@ -166,7 +184,15 @@ class HarmonicCoordinates {
     }
 
     toArray() {
-        return [this.p2, this.p3, this.p5, this.p7, this.p11];
+        return [this.#p2, this.#p3, this.#p5, this.#p7, this.#p11];
+    }
+
+    /**
+     * Same as `toArray()` but assuming no octave reduced primes.
+     * Helpful for calculations.
+     */
+    toArrayAbsolute() {
+        return [this.p2absolute, this.#p3, this.#p5, this.#p7, this.#p11]
     }
 
     /**

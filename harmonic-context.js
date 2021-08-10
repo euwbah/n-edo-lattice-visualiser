@@ -81,6 +81,13 @@ class HarmonicContext {
     #effectiveOrigin = new HarmonicCoordinates(0,0,0,0,0);
 
     /**
+     * stores the last time the effective origin was changed so that
+     * a new effective origin will not change so rapidly.
+     * @type {Date}
+     */
+    #lastKeyChangeTime = new Date();
+
+    /**
      * The mean fifth value (0 is A) of the notes in the shortTermMemory, rounded to the nearest whole.
      * @type {number}
      */
@@ -217,7 +224,6 @@ class HarmonicContext {
         // console.log(`Choosing`, bestFitRelativeNote, bestFitRatio);
 
         let newAbsRatio = bestFitRatio.add(bestFitRelativeNote.absoluteRatio);
-
         let existingPitch = this.getPitchByHarmCoords(newAbsRatio);
         let newPitchIsOctaveOfExistingPitches = this.containsOctavesOfNote(stepsFromA);
 
@@ -321,6 +327,9 @@ class HarmonicContext {
         let avgFifthX = 0;
         let avgFifthY = 0;
 
+        let lowestp2abs = null;
+        let lowestp3 = null;
+
         if (this.shortTermMemory.length !== 0) {
             for (let pitch of this.shortTermMemory) {
                 avg2 += pitch.absoluteRatio.p2;
@@ -332,6 +341,11 @@ class HarmonicContext {
                 let radians = fifths / 31 * Math.PI * 2;
                 avgFifthX += Math.cos(radians);
                 avgFifthY += Math.sin(radians);
+
+                if (lowestp2abs === null || pitch.absoluteRatio.p2absolute < lowestp2abs)
+                    lowestp2abs = pitch.absoluteRatio.p2absolute;
+                if (lowestp3 === null || pitch.absoluteRatio.p3 < lowestp3)
+                    lowestp3 = pitch.absoluteRatio.p3;
             }
 
             avg2 /= this.shortTermMemory.length;
@@ -344,9 +358,29 @@ class HarmonicContext {
         }
 
         this.#avgHc = new HarmonicCoordinates(avg2, avg3, avg5, avg7, avg11);
-        this.#effectiveOrigin = new HarmonicCoordinates(
-            Math.round(avg2), Math.round(avg3), Math.round(avg5), Math.round(avg7), Math.round(avg11)
-        );
+
+        let now = new Date();
+        // 'change key'
+        if (this.dissonance < CONSONANCE_THRESHOLD && now - this.#lastKeyChangeTime > FASTEST_KEY_CHANGE_SECS) {
+            this.#lastKeyChangeTime = now;
+
+            let hc = new HarmonicCoordinates(
+                Math.round(avg2), Math.round(avg3), Math.round(avg5), Math.round(avg7), Math.round(avg11)
+            );
+
+            let p2 = hc.p2;
+            let p3 = hc.p3;
+
+            if (hc.p2absolute - lowestp2abs > HIGHEST_REL_P2_DENOM)
+                // reduce p2 such that hc.p2absolute - lowestp2abs === HIGHEST_REL_P2_DENOM
+                p2 -= hc.p2absolute - lowestp2abs - HIGHEST_REL_P2_DENOM;
+            if (hc.p3 - lowestp3 > HIGHEST_REL_P3_DENOM)
+                p3 -= hc.p3 - lowestp3 - HIGHEST_REL_P3_DENOM;
+
+            hc = new HarmonicCoordinates(p2, p3, hc.p5, hc.p7, hc.p11);
+
+            this.#effectiveOrigin = hc;
+        }
 
         if (avgFifthX === 0 && avgFifthY === 0) {
             // In the very impossible case that the notes in the harmonic context are
@@ -365,7 +399,7 @@ class HarmonicContext {
 
     containsOctavesOfNote(stepsFromA) {
         let octRed = mod(stepsFromA, 31);
-        return this.shortTermMemory.some(x => mod(x.stepsFromA, 31) === stepsFromA);
+        return this.shortTermMemory.some(x => mod(x.stepsFromA, 31) === octRed);
     }
 
     containsHarmCoords(harmCoords) {
