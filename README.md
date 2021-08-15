@@ -50,7 +50,7 @@ coordinate of the ball that is a major second interval away from the origin note
 
 As 31 edo is a tempered tuning (as all equal-temperaments are), the same step size in 31 edo 
 may correspond to various interval ratios ([see here](https://en.xen.wiki/w/31edo#Intervals)) depending on the harmonic context.
-There is an algorithm implemented in `harmonic-context.js` that computes the
+There is an algorithm implemented in [`harmonic-context.js`](https://github.com/euwbah/31edo-lattice-visualiser/blob/master/harmonic-context.js) that computes the
 intended frequency ratios between each note played in 31 edo. This algorithm is a heuristic
 modelling of the brain's short term memory recall of pitches as per [Diana Deutsch's](https://deutsch.ucsd.edu/psychology/pages.php?i=209) empirical findings, fused with
 the perception of consonance of intervals as per [William Sethares' 'dissonance calculating algorithm'](https://sethares.engr.wisc.edu/comprog.html) which models the [critical bandwidth phenomenon](https://www.mpi.nl/world/materials/publications/levelt/Plomp_Levelt_Tonal_1965.pdf).
