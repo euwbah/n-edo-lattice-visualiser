@@ -18,7 +18,7 @@ the color wheel to the circle of 31 fifths.
 The notes positioned using a 5-dimensional coordinate system. The coordinates are a representation of the frequency ratios between notes. This is
 in spirit of the notion that sound can be fundamentally broken down into frequencies, and
 the ratios between frequencies is what we perceive as intervals. [Go to the xenwiki
-to explore this in detail if you are unfamiliar with the concept](https://en.xen.wiki/w/Just_intonation).
+to explore this in detail](https://en.xen.wiki/w/Just_intonation).
 
 The coordinate system is a slightly modified version of [Monzo notation](https://en.xen.wiki/w/Monzo).
 In this visualizer, the 5 axes: represent powers of the unit intervals
