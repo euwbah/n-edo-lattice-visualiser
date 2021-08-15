@@ -15,8 +15,8 @@ The hue of the ball is based on its note's position in the circle of fifths,
 with dark orange being the note A, and the remaining notes given a hue by mapping
 the color wheel to the circle of 31 fifths.
 
-The notes positioned using a 5-dimensional coordinate system. The coordinates are a representation of the frequency ratios between notes. This is
-in spirit of the notion that sound can be fundamentally broken down into frequencies, and
+The notes are positioned using a 5-dimensional coordinate system. The coordinates are a representation of the frequency ratios between notes. This is
+of the notion that sound can be fundamentally broken down into frequencies, and
 the ratios between frequencies is what we perceive as intervals. [Go to the xenwiki
 to explore this in detail](https://en.xen.wiki/w/Just_intonation).
 
