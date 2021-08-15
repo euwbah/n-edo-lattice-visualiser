@@ -56,7 +56,7 @@ modelling of the brain's short term memory recall of pitches as per [Diana Deuts
 the perception of consonance of intervals as per [William Sethares' 'dissonance calculating algorithm'](https://sethares.engr.wisc.edu/comprog.html) which models the [critical bandwidth phenomenon](https://www.mpi.nl/world/materials/publications/levelt/Plomp_Levelt_Tonal_1965.pdf).
 
 [Commas](https://en.xen.wiki/w/Comma) are small discrepancies between two intervals of different frequency ratios, but ends up being the same interval in a tempered tuning system.
-The commas that 31 edo tempers out are numerous which cause the coordinates of the notes to continuously
+The [numerous commas](https://en.xen.wiki/w/31edo#Commas) that 31 edo tempers out cause the coordinates of the notes to continuously
 stray further away from the origin as the song progresses. At times, multiple balls at different coordinates representing the same note would simultaneously be present, especially
 if the sustain pedal is held down for a long while, representing how that one note is a
 double, or even triple entendre of an interval with respect to the other notes present.
@@ -84,7 +84,9 @@ particular point in time.
 
 Finally, there is a particle generator/flare in central focus, which is in constant
 pursuit of a small, like-coloured ball. The small ball represents the [centroid](https://en.wikipedia.org/wiki/Centroid) (_center-of-mass/average position_) of the notes that are 
-currently present in the 'harmonic context'. These elements were initially for debugging, and may be included for aesthetic reasons.
+currently present in the 'Harmonic Context'. These elements were initially for debugging, and may be included for aesthetic reasons. The flare color is the [circular
+mean](https://en.wikipedia.org/wiki/Circular_mean) of the hue colors of the pitches
+in the Harmonic Context, according to the circle of fifths.
 
 The dynamics of the music may also affect the rotation, position, zoom and speed of the geometry/axes/projection camera, as well as post-effects, and vibrational jitter of elements.
 
