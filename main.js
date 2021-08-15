@@ -4,7 +4,7 @@ const ballManager = new BallsManager();
 const scaffoldingManager = new ScaffoldingManager();
 const harmonicContext = new HarmonicContext();
 const camera = new Camera(harmonicContext);
-const keyCenterParticleFountain = new KeyCenterParticleFountain();
+const harmonicCentroidParticleFountain = new KeyCenterParticleFountain();
 
 socket.onmessage = (e) => {
     // only start reading socket messages when window.essentia is defined
@@ -114,14 +114,13 @@ function draw() {
     ROTATOR += dRotator;
     oldDRotator = dRotator;
 
-
     harmonicContext.tick();
     ballManager.tick(KEYS_STATE, harmonicContext);
     scaffoldingManager.tick();
     camera.tick(ballManager.stdDeviation, dRotator);
-    keyCenterParticleFountain.tick(harmonicContext, dRotator, camera);
+    harmonicCentroidParticleFountain.tick(harmonicContext, dRotator, camera);
 
-    keyCenterParticleFountain.draw(camera, GRAPHICS);
+    harmonicCentroidParticleFountain.draw(camera, GRAPHICS);
     scaffoldingManager.draw(camera, GRAPHICS);
     ballManager.draw(camera, GRAPHICS);
 

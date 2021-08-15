@@ -75,9 +75,15 @@ class Camera {
         x -= this.centerX;
         y -= this.centerY;
 
-        if (PROJECTION_TYPE === 'curved') {
+        if (PROJECTION_TYPE === 'exp2d') {
             x = Math.pow(Math.abs(x), this.effectiveExponent) * Math.sign(x);
             y = Math.pow(Math.abs(y), this.effectiveExponent) * Math.sign(y);
+        } else if (PROJECTION_TYPE === 'exppolar') {
+            let r = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+            let theta = Math.atan2(y, x);
+            r = Math.pow(r, this.effectiveExponent); // r is always positive
+            x = r * Math.cos(theta);
+            y = r * Math.sin(theta);
         }
 
         x *= this.zoom;
@@ -95,9 +101,15 @@ class Camera {
         x /= this.zoom;
         y /= this.zoom;
 
-        if (PROJECTION_TYPE === 'curved') {
+        if (PROJECTION_TYPE === 'exp2d') {
             x = Math.pow(Math.abs(x), 1 / this.effectiveExponent) * Math.sign(x);
             y = Math.pow(Math.abs(y), 1 / this.effectiveExponent) * Math.sign(y);
+        } else if (PROJECTION_TYPE === 'exppolar') {
+            let r = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
+            let theta = Math.atan2(y, x);
+            r = Math.pow(r, 1 / this.effectiveExponent); // r is always positive
+            x = r * Math.cos(theta);
+            y = r * Math.sin(theta);
         }
 
         x += this.centerX;
@@ -114,20 +126,42 @@ class Camera {
         x = (x - this.centerX);
         y = (y - this.centerY);
         let dx = this.zoom, dy = this.zoom;
-        if (PROJECTION_TYPE === 'curved') {
-            if (x !== 0)
-                dx = dx * Math.pow(Math.abs(x), this.effectiveExponent - 1);
+        if (PROJECTION_TYPE === 'exp2d') {
+            // NOTE: if effectiveExponent < 1, dx -> infinity as x -> 0
+            //       if effectiveExponent = 1, dx = 1 always.
+            //       if effectiveExponent > 1, dx -> 0 as x -> 0.
+            //       NOTE: never let effectiveExponent > 1.
+            if (x !== 0) {
+                /*
+                d/dx projx(x) = zoom^exp * exp * x ^ (exp - 1)
+                 */
+                dx = Math.pow(this.zoom, this.effectiveExponent) * this.effectiveExponent * Math.pow(Math.abs(x), this.effectiveExponent - 1);
+            }
+            if (y !== 0) {
+                dy = Math.pow(this.zoom, this.effectiveExponent) * this.effectiveExponent * Math.pow(Math.abs(y), this.effectiveExponent - 1);
+            }
 
-            if (y !== 0)
-                dy = dy * Math.pow(Math.abs(y), this.effectiveExponent - 1);
+        } else if (PROJECTION_TYPE === 'exppolar') {
+            let r1 = Math.pow(x, 2) + Math.pow(y, 2);
+            let theta = Math.atan2(y, x);
+            // NOTE: never let effectiveExponent > 2,
+            if (r1 !== 0) {
+                let dr2_dx = 2*Math.abs(x) * this.effectiveExponent/2 * Math.pow(r1, this.effectiveExponent/2 - 1);
+                let dr2_dy = 2*Math.abs(y) * this.effectiveExponent/2 * Math.pow(r1, this.effectiveExponent/2 - 1);
+                dx = Math.abs(Math.cos(theta)) * this.zoom * dr2_dx;
+                dy = Math.abs(Math.sin(theta)) * this.zoom * dr2_dy;
+            }
         }
 
+        // Scalar zoom scaling is capped at zoom level.
         if (dx > this.zoom)
             dx = this.zoom;
         if (dy > this.zoom)
             dy = this.zoom;
 
-        return scalar * (dx + dy) / 2;
+        let dr = Math.min(this.zoom, Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2)));
+
+        return scalar * dr;
     }
 
     toScreenCoordinates(cartesian) {

@@ -1,4 +1,4 @@
-const VERSION = 'v0.1.6'
+const VERSION = 'v0.1.7'
 let DEBUG = true;
 let SHOW_DEBUG_BALLS = true;
 
@@ -135,19 +135,25 @@ let TEXT_TYPE = 'relfraction';
 let MIN_TEXT_SIZE_PX = 14;
 let MAX_TEXT_SIZE_PX = 25;
 
-let PROJECTION_TYPE = 'curved';
+/**
+ * @type {'exp2d'|'exppolar'}
+ */
+let PROJECTION_TYPE = 'exppolar';
 let MAX_ZOOM = 65;
 let MIN_ZOOM = 12;
 let MAX_ZOOM_STD_DEV = 1;
 let MIN_ZOOM_STD_DEV = 20;
 /**
- * When in 'curved' projection mode, the coordinates of the entities will be set to the
+ * When in 'exp2d' projection mode, x and y coordinates will be set to the
  * power of this exponent.
+ *
+ * When in 'exppolar' projection mode, the radial coordinates of the polar system will be
+ * set to the power of this exponent.
  * @type {number}
  */
 let EXPONENT = 0.7;
 /** How much the exponent can grow proportional to happeningness*/
-let EXPONENT_GROWTH = 0.4;
+let EXPONENT_GROWTH = 0.999 - EXPONENT;
 /** How fast the zoom can change */
 let ZOOM_CHANGE_SPEED = 0.9;
 /** How much zoom can shrink (as a ratio of overall zoom) proportional to happeningness*/
