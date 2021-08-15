@@ -55,7 +55,7 @@ intended frequency ratios between each note played in 31 edo. This algorithm is 
 modelling of the brain's short term memory recall of pitches as per [Diana Deutsch's](https://deutsch.ucsd.edu/psychology/pages.php?i=209) empirical findings, fused with
 the perception of consonance of intervals as per [William Sethares' 'dissonance calculating algorithm'](https://sethares.engr.wisc.edu/comprog.html) which models the [critical bandwidth phenomenon](https://www.mpi.nl/world/materials/publications/levelt/Plomp_Levelt_Tonal_1965.pdf).
 
-[Commas](https://en.xen.wiki/w/Comma) are small discrepancies between two intervals of different frequency ratios, but ends up being the same interval in a tempered tuning system.
+[Commas](https://en.xen.wiki/w/Comma) are small discrepancies between two intervals of different frequency ratios, where the two intervals ends up being the same interval in a tempered tuning system.
 The [numerous commas](https://en.xen.wiki/w/31edo#Commas) that 31 edo tempers out cause the coordinates of the notes to continuously
 stray further away from the origin as the song progresses. At times, multiple balls at different coordinates representing the same note would simultaneously be present, especially
 if the sustain pedal is held down for a long while, representing how that one note is a
