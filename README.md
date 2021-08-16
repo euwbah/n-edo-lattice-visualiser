@@ -61,9 +61,9 @@ stray further away from the origin as the song progresses. At times, multiple ba
 if the sustain pedal is held down for a long while, representing how that one note is a
 double, or even triple entendre of an interval with respect to the other notes present.
 
-Now with the coordinates of the notes ascertained, the visualizer maps the 5D coordinates down to 2D in various ways. So far hyperbolic 2D and exponential/log space are implemented. (Hyperbolic 3D coming soon) The down-projection of 5 dimensions leaves much room for artistic expression.
+Now with the coordinates of the notes ascertained, the visualizer maps the 5D coordinates down to 2D in various ways. So far, hyperbolic 2D and exponential/log space projections are implemented. (Hyperbolic 3D coming soon) The down-projection of 5 dimensions leaves much room for artistic expression.
 
-Other than the balls, there are also scaffolding rods connecting them. Each rod represents one
+Between the notes, there are also scaffolding rods connecting them. Each rod represents one
 unit in the direction of the axis, and the axes are colour coded. As of the time of writing, these colours correspond to:
 
 | Colour | Coordinate | Interval |
@@ -88,7 +88,7 @@ currently present in the 'Harmonic Context'. These elements were initially for d
 mean](https://en.wikipedia.org/wiki/Circular_mean) of the hue colors of the pitches
 in the Harmonic Context, according to the circle of fifths.
 
-The dynamics of the music may also affect the rotation, position, zoom and speed of the geometry/axes/projection camera, as well as post-effects, and vibrational jitter of elements.
+The dynamics of the music may also affect the rotation, position, zoom and speed of the geometry/axes/projection camera; post-effects; and vibrational jitter of elements.
 
 ## For devs
 
