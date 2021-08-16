@@ -63,8 +63,8 @@ double, or even triple entendre of an interval with respect to the other notes p
 
 Now with the coordinates of the notes ascertained, the visualizer maps the 5D coordinates down to 2D in various ways. So far, hyperbolic 2D and exponential/log space projections are implemented. (Hyperbolic 3D coming soon) The down-projection of 5 dimensions leaves much room for artistic expression.
 
-Between the notes, there are also scaffolding rods connecting them. Each rod represents one
-unit in the direction of the axis, and the axes are colour coded. As of the time of writing, these colours correspond to:
+Between the notes, there are scaffolding rods connecting them. Each rod represents one
+unit in the direction of its axis, and the axes are colour coded. As of the time of writing, these colours correspond to:
 
 | Colour | Coordinate | Interval |
 | :---: | :--- | :--- |
