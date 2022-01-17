@@ -72,11 +72,19 @@ function setup() {
 
 let resizeGraphicsTimeout = null;
 function windowResized() {
-    if (resizeGraphicsTimeout != null)
+    noLoop();
+    if (resizeGraphicsTimeout != null) {
         clearTimeout(resizeGraphicsTimeout);
-
+    }
     resizeCanvas(windowWidth, windowHeight);
     resizeGraphicsTimeout = setTimeout(() => {
+        GRAPHICS.canvas.remove();
+        hBlurPass1.canvas.remove();
+        vBlurPass2.canvas.remove();
+        bloomPass3.canvas.remove();
+        blurPass4.canvas.remove();
+        blurPass5.canvas.remove();
+        bloomPass6.canvas.remove();
         GRAPHICS = createGraphics(windowWidth, windowHeight, WEBGL);
         GRAPHICS.colorMode(HSB, 360, 100, 100, 1);
         GRAPHICS.textFont(FIRA_SANS);
@@ -94,6 +102,7 @@ function windowResized() {
         blurPass4.noStroke();
         bloomPass6.noStroke();
         resizeGraphicsTimeout = null;
+        loop();
     }, 500);
 }
 

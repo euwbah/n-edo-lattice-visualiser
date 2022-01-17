@@ -94,9 +94,12 @@ let MAX_FATIGUE_SECS = 0.6;
 See HarmonicCoordinates.harmonicDistance() for heuristic implementation.*/
 let MAX_HARMONIC_DISTANCE = 13;
 /**
- * How much does being a (non)chord-tone affect the display of a ball.
-the closer the value to zero, the higher the effect.*/
-let CHORD_TONE_EFFECT = 0.7;
+ * How much does being a non-chord-tone affect the saturation of a ball.
+the closer the value to zero, the higher the effect. */
+let NON_CHORD_TONE_SAT_EFFECT = 0.5;
+/**
+ * How much does being a non-chord-tone affect the size of a ball. */
+let NON_CHORD_TONE_SIZE_EFFECT = 0.75;
 
 let RESET_TIME_SECS = 1;
 
@@ -151,7 +154,7 @@ let MIN_ZOOM_STD_DEV = 20;
  * set to the power of this exponent.
  * @type {number}
  */
-let EXPONENT = 0.7;
+let EXPONENT = 0.6;
 /** How much the exponent can grow proportional to happeningness*/
 let EXPONENT_GROWTH = 0.999 - EXPONENT;
 /** How fast the zoom can change */
@@ -217,7 +220,7 @@ let MIN_LINE_THICKNESS_PX = 2;
 let MAX_LINE_THICKNESS_PX = 10;
 
 let USE_SHADERS = true;
-let SHADER_BLUR_COEF = 0.2;
+let SHADER_BLUR_COEF = 0.05;
 let SHADER_BLOOM_AMOUNT = 40;
 
 /**

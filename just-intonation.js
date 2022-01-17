@@ -265,39 +265,46 @@ function arrayOfHarmonicCoordinates(fractions) {
 }
 
 // Approximate ratios of 31 edo
-// DO NOT MODIFY THE DICT VALUES!!
+// DO NOT MODIFY THE DICT VALUES DURING RUNTIME!!
+//
+// Currently commatic intervals are commented out for testing purposes
+// 'commatic' intervals are assumed to be intervals that one would not instinctively think
+// of using when 1/1 is the assumed 'root note'.
 const RATIOS31 = {
+    // do
     0: [HarmonicCoordinates.fromRatio(1, 1)],
     1: arrayOfHarmonicCoordinates([
         [45, 44],
         [49, 48],
-        [128, 125],
+        //[128, 125],
         [36, 35]
     ]),
     2: arrayOfHarmonicCoordinates([
         [25,24], [21,20], [22,21]
     ]),
     3: arrayOfHarmonicCoordinates([
-        [16,15] // 14/15
+        [16,15] //, [15,14]
     ]),
     4: arrayOfHarmonicCoordinates([
-        [12, 11], [11, 10], [35, 32]
+        [12, 11], [11, 10]//, [35, 32]
     ]),
+    // re
     5: arrayOfHarmonicCoordinates([
-        [9,8], [10,9], [28,25]
+        [9,8], [10,9]//, [28,25]
     ]),
     6: arrayOfHarmonicCoordinates([
-        [8,7], [144,125]
+        [8,7]//, [144,125]
     ]),
     7: arrayOfHarmonicCoordinates([
-        [7,6], [75,64]
+        [7,6]//, [75,64]
     ]),
     8: arrayOfHarmonicCoordinates([
-        [6,5], [25,21]
+        [6,5]//, [25,21]
     ]),
     9: arrayOfHarmonicCoordinates([
-        [11,9], [27,22], [60, 49], [49, 40]
+        [11,9]//, [27,22], [60, 49], [49, 40]
     ]),
+    // mi
     10: arrayOfHarmonicCoordinates([
         [5,4]
     ]),
@@ -305,8 +312,9 @@ const RATIOS31 = {
         [9,7], [14,11], [32,25]
     ]),
     12: arrayOfHarmonicCoordinates([
-        [21,16], [125,96]
+        [21,16]//, [125,96]
     ]),
+    // fa
     13: arrayOfHarmonicCoordinates([
         [4,3]
     ]),
@@ -320,13 +328,14 @@ const RATIOS31 = {
         [10,7], [64,45], [36,25]
     ]),
     17: arrayOfHarmonicCoordinates([
-        [16,11], [22,15]
+        [16,11]//, [22,15]
     ]),
+    // so
     18: arrayOfHarmonicCoordinates([
         [3,2]
     ]),
     19: arrayOfHarmonicCoordinates([
-        [32,21], [192,125]
+        [32,21]//, [192,125]
     ]),
     20: arrayOfHarmonicCoordinates([
         [14,9], [11,7], [25,16]
@@ -335,23 +344,25 @@ const RATIOS31 = {
         [8,5]
     ]),
     22: arrayOfHarmonicCoordinates([
-        [18, 11], [44, 27], [49,30], [80,49]
+        [18, 11], [44, 27]//, [49,30], [80,49]
     ]),
+    // la
     23: arrayOfHarmonicCoordinates([
-        [5,3], [42,25]
+        [5,3]//, [42,25]
     ]),
     24: arrayOfHarmonicCoordinates([
-        [12,7], [128,75]
+        [12,7]//, [128,75]
     ]),
     25: arrayOfHarmonicCoordinates([
-        [7,4], [125,72]
+        [7,4]//, [125,72]
     ]),
     26: arrayOfHarmonicCoordinates([
-        [16,9], [9,5], [25,14]
+        [16,9], [9,5]//, [25,14]
     ]),
     27: arrayOfHarmonicCoordinates([
-        [11,6], [20,11], [64,35]
+        [11,6]//, [20,11], [64,35]
     ]),
+    // ti
     28: arrayOfHarmonicCoordinates([
         [15,8]
     ]),
@@ -359,7 +370,9 @@ const RATIOS31 = {
         [48,25], [40,21], [21,11]
     ]),
     30: arrayOfHarmonicCoordinates([
-        [88,45], [96,49], [125,64], [35,18]
+        [88,45], [96,49],
+        //[125,64],
+        [35,18]
     ])
 };
 

@@ -226,9 +226,9 @@ class Ball {
             }
         }
 
-        let chordToneMult = this.isChordTone ? 1 : CHORD_TONE_EFFECT;
+        let nonChordToneMult = this.isChordTone ? 1 : NON_CHORD_TONE_SAT_EFFECT;
 
-        this.color = color(this.hue, this.saturation * chordToneMult, 100 * Math.pow(this.presence, 0.5));
+        this.color = color(this.hue, this.saturation * nonChordToneMult, 100 * Math.pow(this.presence, 0.5));
         this.sizeUnscaled = Math.pow(this.presence, 0.5) * BALL_SIZE;
 
         [this.x, this.y] = this.harmCoords.toUnscaledCoords();
@@ -244,7 +244,7 @@ class Ball {
     draw(camera, graphics) {
         let unscaledCoords = [this.x, this.y];
         let [x, y] = camera.toScreenCoordinates(camera.project(unscaledCoords));
-        let size = camera.projectScalar(this.sizeUnscaled * (this.isChordTone ? 1 : CHORD_TONE_EFFECT), unscaledCoords);
+        let size = camera.projectScalar(this.sizeUnscaled * (this.isChordTone ? 1 : NON_CHORD_TONE_SIZE_EFFECT), unscaledCoords);
         graphics.noStroke();
         graphics.fill(this.color);
         graphics.circle(x, y, size);
