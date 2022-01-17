@@ -15,10 +15,10 @@ The hue of the ball is based on its note's position in the circle of fifths,
 with dark orange being the note A, and the remaining notes given a hue by mapping
 the color wheel to the circle of 31 fifths.
 
-The notes positioned using a 5-dimensional coordinate system. The coordinates are a representation of the frequency ratios between notes. This is
-in spirit of the notion that sound can be fundamentally broken down into frequencies, and
+The notes are positioned using a 5-dimensional coordinate system. The coordinates are a representation of the frequency ratios between notes. This is
+of the notion that sound can be fundamentally broken down into frequencies, and
 the ratios between frequencies is what we perceive as intervals. [Go to the xenwiki
-to explore this in detail if you are unfamiliar with the concept](https://en.xen.wiki/w/Just_intonation).
+to explore this in detail](https://en.xen.wiki/w/Just_intonation).
 
 The coordinate system is a slightly modified version of [Monzo notation](https://en.xen.wiki/w/Monzo).
 In this visualizer, the 5 axes: represent powers of the unit intervals
@@ -50,21 +50,21 @@ coordinate of the ball that is a major second interval away from the origin note
 
 As 31 edo is a tempered tuning (as all equal-temperaments are), the same step size in 31 edo 
 may correspond to various interval ratios ([see here](https://en.xen.wiki/w/31edo#Intervals)) depending on the harmonic context.
-There is an algorithm implemented in `harmonic-context.js` that computes the
+There is an algorithm implemented in [`harmonic-context.js`](https://github.com/euwbah/31edo-lattice-visualiser/blob/master/harmonic-context.js) that computes the
 intended frequency ratios between each note played in 31 edo. This algorithm is a heuristic
 modelling of the brain's short term memory recall of pitches as per [Diana Deutsch's](https://deutsch.ucsd.edu/psychology/pages.php?i=209) empirical findings, fused with
 the perception of consonance of intervals as per [William Sethares' 'dissonance calculating algorithm'](https://sethares.engr.wisc.edu/comprog.html) which models the [critical bandwidth phenomenon](https://www.mpi.nl/world/materials/publications/levelt/Plomp_Levelt_Tonal_1965.pdf).
 
-[Commas](https://en.xen.wiki/w/Comma) are small discrepancies between two intervals of different frequency ratios, but ends up being the same interval in a tempered tuning system.
+[Commas](https://en.xen.wiki/w/Comma) are small discrepancies between two intervals of different frequency ratios, where the two intervals end up being the same interval in a tempered tuning system.
 The [numerous commas](https://en.xen.wiki/w/31edo#Commas) that 31 edo tempers out cause the coordinates of the notes to continuously
 stray further away from the origin as the song progresses. At times, multiple balls at different coordinates representing the same note would simultaneously be present, especially
 if the sustain pedal is held down for a long while, representing how that one note is a
 double, or even triple entendre of an interval with respect to the other notes present.
 
-Now with the coordinates of the notes ascertained, the visualizer maps the 5D coordinates down to 2D in various ways. So far hyperbolic 2D and exponential/log space are implemented. (Hyperbolic 3D coming soon) The down-projection of 5 dimensions leaves much room for artistic expression.
+Now with the coordinates of the notes ascertained, the visualizer maps the 5D coordinates down to 2D in various ways. So far, hyperbolic 2D and exponential/log space projections are implemented. (Hyperbolic 3D coming soon) The down-projection of 5 dimensions leaves much room for artistic expression.
 
-Other than the balls, there are also scaffolding rods connecting them. Each rod represents one
-unit in the direction of the axis, and the axes are colour coded. As of the time of writing, these colours correspond to:
+Between the notes, there are scaffolding rods connecting them. Each rod represents one
+unit in the direction of its axis, and the axes are colour coded. As of the time of writing, these colours correspond to:
 
 | Colour | Coordinate | Interval |
 | :---: | :--- | :--- |
@@ -88,7 +88,7 @@ currently present in the 'Harmonic Context'. These elements were initially for d
 mean](https://en.wikipedia.org/wiki/Circular_mean) of the hue colors of the pitches
 in the Harmonic Context, according to the circle of fifths.
 
-The dynamics of the music may also affect the rotation, position, zoom and speed of the geometry/axes/projection camera, as well as post-effects, and vibrational jitter of elements.
+The dynamics of the music may also affect the rotation, position, zoom and speed of the geometry/axes/projection camera; post-effects; and vibrational jitter of elements.
 
 ## For devs
 
