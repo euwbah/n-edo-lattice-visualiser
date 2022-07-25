@@ -1,9 +1,11 @@
+let wasm_bindgen;
+(function() {
+    const __exports = {};
+    let wasm;
 
-let wasm;
+    const heap = new Array(32).fill(undefined);
 
-const heap = new Array(32).fill(undefined);
-
-heap.push(undefined, null, true, false);
+    heap.push(undefined, null, true, false);
 
 function getObject(idx) { return heap[idx]; }
 
@@ -58,9 +60,9 @@ function getStringFromWasm0(ptr, len) {
 }
 /**
 */
-export function greet() {
+__exports.greet = function() {
     wasm.greet();
-}
+};
 
 let WASM_VECTOR_LEN = 0;
 
@@ -74,12 +76,12 @@ function passArrayF64ToWasm0(arg, malloc) {
 * @param {Float64Array} freqs
 * @returns {number}
 */
-export function calculateDissonance(freqs) {
+__exports.calculateDissonance = function(freqs) {
     var ptr0 = passArrayF64ToWasm0(freqs, wasm.__wbindgen_malloc);
     var len0 = WASM_VECTOR_LEN;
     var ret = wasm.calculateDissonance(ptr0, len0);
     return ret;
-}
+};
 
 function addHeapObject(obj) {
     if (heap_next === heap.length) heap.push(heap.length + 1);
@@ -97,7 +99,7 @@ function getArrayI32FromWasm0(ptr, len) {
 * @param {Array<any>} matrix
 * @returns {Int32Array}
 */
-export function dissonanceMatrix(matrix) {
+__exports.dissonanceMatrix = function(matrix) {
     try {
         const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
         wasm.dissonanceMatrix(retptr, addHeapObject(matrix));
@@ -109,18 +111,18 @@ export function dissonanceMatrix(matrix) {
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
     }
-}
+};
 
 /**
 * @param {Float64Array} freqs
 * @returns {number}
 */
-export function findOffender(freqs) {
+__exports.findOffender = function(freqs) {
     var ptr0 = passArrayF64ToWasm0(freqs, wasm.__wbindgen_malloc);
     var len0 = WASM_VECTOR_LEN;
     var ret = wasm.findOffender(ptr0, len0);
     return ret >>> 0;
-}
+};
 
 async function load(module, imports) {
     if (typeof Response === 'function' && module instanceof Response) {
@@ -155,7 +157,13 @@ async function load(module, imports) {
 
 async function init(input) {
     if (typeof input === 'undefined') {
-        input = new URL('dissonance_wasm_bg.wasm', import.meta.url);
+        let src;
+        if (typeof document === 'undefined') {
+            src = location.href;
+        } else {
+            src = document.currentScript.src;
+        }
+        input = src.replace(/\.js$/, '_bg.wasm');
     }
     const imports = {};
     imports.wbg = {};
@@ -201,5 +209,6 @@ async function init(input) {
     return wasm;
 }
 
-export default init;
+wasm_bindgen = Object.assign(init, __exports);
 
+})();
