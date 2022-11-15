@@ -141,7 +141,7 @@ let MAX_TEXT_SIZE_PX = 25;
 /**
  * @type {'exp2d'|'exppolar'}
  */
-let PROJECTION_TYPE = 'exppolar';
+let PROJECTION_TYPE = 'exp2d';
 let MAX_ZOOM = 65;
 let MIN_ZOOM = 12;
 let MAX_ZOOM_STD_DEV = 1;
@@ -154,7 +154,7 @@ let MIN_ZOOM_STD_DEV = 20;
  * set to the power of this exponent.
  * @type {number}
  */
-let EXPONENT = 0.6;
+let EXPONENT = 0.8;
 /** How much the exponent can grow proportional to happeningness*/
 let EXPONENT_GROWTH = 0.999 - EXPONENT;
 /** How fast the zoom can change */
@@ -171,8 +171,8 @@ let CAM_SPEED_HAPPENINGNESS = 3.8;
  * @type {number}
  */
 let ROTATOR_START = 0.15;
-let MAX_ROTATION_AMOUNT = 10;
-let ROTATOR_SPEED = 1.2; // Changing the rotator speed also scales the max rotation amount.
+let MAX_ROTATION_AMOUNT = 6;
+let ROTATOR_SPEED = 1.1; // Changing the rotator speed also scales the max rotation amount.
 /**
  * The fraction of the current rotator speed that is present from the previous rotator speed
  * rot speed = inertia * old speed + (1 - inertia) * new speed
