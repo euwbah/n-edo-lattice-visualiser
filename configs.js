@@ -39,14 +39,14 @@ let SEPTIMAL_COLOR;
 let UNDECIMAL_COLOR;
 
 function preload() {
-    FIRA_SANS = loadFont('/FiraSansExtralight-AyaD.ttf');
+    FIRA_SANS = loadFont('./FiraSansExtralight-AyaD.ttf');
 
-    shaderBlurH = loadShader('/base.vert', '/blur.frag');
-    shaderBlurV = loadShader('/base.vert', '/blur.frag');
-    shaderBloom = loadShader('/base.vert', '/bloom.frag');
-    shaderBlur3 = loadShader('/base.vert', '/blur.frag');
-    shaderBlur4 = loadShader('/base.vert', '/blur.frag');
-    shaderBloom2 = loadShader('/base.vert', '/bloom.frag');
+    shaderBlurH = loadShader('./base.vert', './blur.frag');
+    shaderBlurV = loadShader('./base.vert', './blur.frag');
+    shaderBloom = loadShader('./base.vert', './bloom.frag');
+    shaderBlur3 = loadShader('./base.vert', './blur.frag');
+    shaderBlur4 = loadShader('./base.vert', './blur.frag');
+    shaderBloom2 = loadShader('./base.vert', './bloom.frag');
     colorMode(HSB, 360, 100, 100, 1);
     OCTAVES_COLOR = color(210, 10, 60);
     FIFTHS_COLOR = color(40, 60, 60);
