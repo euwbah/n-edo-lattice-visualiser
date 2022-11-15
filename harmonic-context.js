@@ -32,7 +32,7 @@ class Pitch {
 
     constructor(stepsFromA, origin, relativeRatio) {
         this.stepsFromA = stepsFromA;
-        this.frequency = 440 * 2 ** (stepsFromA / 31);
+        this.frequency = 440 * 2 ** (stepsFromA / EDO);
         this.origin = origin;
         this.relativeRatio = relativeRatio;
         this.noteOnTime = new Date();
@@ -181,8 +181,8 @@ class HarmonicContext {
         // the new note can relate to the existing notes in the short term memory.
 
         // note that the existing notes in the short term memory will all be set to
-        // fixed tempered 31 edo pitches, but the note in question will be tested in just intonation
-        // with respect to each of the existing 31 edo pitches to solve the ambiguity of the harmonic function
+        // fixed tempered, quantized N edo pitches, but the note in question will be tested in just intonation
+        // with respect to each of the existing quantized pitches to solve the ambiguity of the harmonic function
         // of the newly added note.
 
         let stmFreqs = this.stmFrequencies;
@@ -241,7 +241,7 @@ class HarmonicContext {
            existingPitch.noteOnTime = new Date();
         }
 
-        // 3. If the new pitch clashes with any pitch by 1 diesis, remove the old pitch from STM.
+        // 3. If the new pitch clashes with any pitch by 1 edostep, remove the old pitch from STM.
 
         for (let i = 0; i < this.shortTermMemory.length; i++) {
             if (Math.abs(this.shortTermMemory[i].stepsFromA - stepsFromA) === 1) {
@@ -337,8 +337,8 @@ class HarmonicContext {
                 avg5 += pitch.absoluteRatio.p5;
                 avg7 += pitch.absoluteRatio.p7;
                 avg11 += pitch.absoluteRatio.p11;
-                let fifths = DIESES_TO_FIFTHS_MAP[mod(pitch.stepsFromA, 31)];
-                let radians = fifths / 31 * Math.PI * 2;
+                let fifths = EDOSTEPS_TO_FIFTHS_MAP[mod(pitch.stepsFromA, EDO)];
+                let radians = fifths / EDO * Math.PI * 2;
                 avgFifthX += Math.cos(radians);
                 avgFifthY += Math.sin(radians);
 
@@ -389,7 +389,7 @@ class HarmonicContext {
         } else {
             let centralFifthRadians = Math.atan2(avgFifthY, avgFifthX);
             // mod is necessary as central fifth radians returns negative for angles above 180.
-            this.#centralFifth = mod(Math.round(31 * centralFifthRadians / (2 * Math.PI)), 31);
+            this.#centralFifth = mod(Math.round(EDO * centralFifthRadians / (2 * Math.PI)), EDO);
         }
     }
 
@@ -398,8 +398,8 @@ class HarmonicContext {
     }
 
     containsOctavesOfNote(stepsFromA) {
-        let octRed = mod(stepsFromA, 31);
-        return this.shortTermMemory.some(x => mod(x.stepsFromA, 31) === octRed);
+        let octRed = mod(stepsFromA, EDO);
+        return this.shortTermMemory.some(x => mod(x.stepsFromA, EDO) === octRed);
     }
 
     containsHarmCoords(harmCoords) {

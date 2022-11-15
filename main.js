@@ -70,40 +70,15 @@ function setup() {
     bloomPass6.noStroke();
 }
 
-let resizeGraphicsTimeout = null;
 function windowResized() {
-    noLoop();
-    if (resizeGraphicsTimeout != null) {
-        clearTimeout(resizeGraphicsTimeout);
-    }
+    hBlurPass1.resizeCanvas(windowWidth, windowHeight);
+    vBlurPass2.resizeCanvas(windowWidth, windowHeight);
+    bloomPass3.resizeCanvas(windowWidth, windowHeight);
+    blurPass4.resizeCanvas(windowWidth, windowHeight);
+    blurPass5.resizeCanvas(windowWidth, windowHeight);
+    bloomPass6.resizeCanvas(windowWidth, windowHeight);
+    GRAPHICS.resizeCanvas(windowWidth, windowHeight);
     resizeCanvas(windowWidth, windowHeight);
-    resizeGraphicsTimeout = setTimeout(() => {
-        GRAPHICS.canvas.remove();
-        hBlurPass1.canvas.remove();
-        vBlurPass2.canvas.remove();
-        bloomPass3.canvas.remove();
-        blurPass4.canvas.remove();
-        blurPass5.canvas.remove();
-        bloomPass6.canvas.remove();
-        GRAPHICS = createGraphics(windowWidth, windowHeight, WEBGL);
-        GRAPHICS.colorMode(HSB, 360, 100, 100, 1);
-        GRAPHICS.textFont(FIRA_SANS);
-        GRAPHICS.setAttributes('antialias', true);
-        GRAPHICS.colorMode(HSB, 360, 100, 100, 1);
-        hBlurPass1 = createGraphics(windowWidth, windowHeight, WEBGL);
-        vBlurPass2 = createGraphics(windowWidth, windowHeight, WEBGL);
-        bloomPass3 = createGraphics(windowWidth, windowHeight, WEBGL);
-        blurPass4 = createGraphics(windowWidth, windowHeight, WEBGL);
-        blurPass5 = createGraphics(windowWidth, windowHeight, WEBGL);
-        bloomPass6 = createGraphics(windowWidth, windowHeight, WEBGL);
-        hBlurPass1.noStroke();
-        vBlurPass2.noStroke();
-        bloomPass3.noStroke();
-        blurPass4.noStroke();
-        bloomPass6.noStroke();
-        resizeGraphicsTimeout = null;
-        loop();
-    }, 500);
 }
 
 let oldDRotator = 0;

@@ -276,7 +276,7 @@ const RATIOS31 = {
     1: arrayOfHarmonicCoordinates([
         [45, 44],
         [49, 48],
-        //[128, 125],
+        [128, 125],
         [36, 35]
     ]),
     2: arrayOfHarmonicCoordinates([
@@ -376,20 +376,116 @@ const RATIOS31 = {
     ])
 };
 
+const RATIOS22 = {
+    // do
+    0: arrayOfHarmonicCoordinates([
+        [1, 1]
+    ]),
+    1: arrayOfHarmonicCoordinates([
+        [36, 35], [33, 32]
+    ]),
+    2: arrayOfHarmonicCoordinates([
+        [16, 15], [15, 14]
+    ]),
+    3: arrayOfHarmonicCoordinates([
+        [12, 11], [11, 10], [10, 9]
+    ]),
+    // Re
+    4: arrayOfHarmonicCoordinates([
+        [9, 8], [8, 7]
+    ]),
+    5: arrayOfHarmonicCoordinates([
+        [7, 6]
+    ]),
+    6: arrayOfHarmonicCoordinates([
+        [6, 5], [11, 9]
+    ]),
+    7: arrayOfHarmonicCoordinates([
+        [5/4], //[96, 77]
+    ]),
+    // Mi
+    8: arrayOfHarmonicCoordinates([
+        [14, 11], [9, 7]
+    ]),
+    // Fa
+    9: arrayOfHarmonicCoordinates([
+        [4, 3]
+    ]),
+    10: arrayOfHarmonicCoordinates([
+        [11, 8], [15, 11]
+    ]),
+    11: arrayOfHarmonicCoordinates([
+        // Disclaimer: 45/32 is not technically in the val map/generated, 
+        // but functionally it could be used as such.
+        [7, 5], [10, 7], [45, 32]
+    ]),
+    12: arrayOfHarmonicCoordinates([
+        [16,11], [22,16]
+    ]),
+    // So
+    13: arrayOfHarmonicCoordinates([
+        [3, 2]
+    ]),
+    14: arrayOfHarmonicCoordinates([
+        [14, 9], [11, 7]
+    ]),
+    15: arrayOfHarmonicCoordinates([
+        [8, 5], //[77, 48]
+    ]),
+    16: arrayOfHarmonicCoordinates([
+        [5, 3], [18, 11]
+    ]),
+    // La
+    17: arrayOfHarmonicCoordinates([
+        [12, 7]
+    ]),
+    18: arrayOfHarmonicCoordinates([
+        [7, 4], [16, 9]
+    ]),
+    19: arrayOfHarmonicCoordinates([
+        [9, 5], [11, 6], [20, 11]
+    ]),
+    20: arrayOfHarmonicCoordinates([
+        [28, 15], [15, 8]
+    ]),
+    // Ti
+    21: arrayOfHarmonicCoordinates([
+        [64, 33], [35, 18]
+    ]),
+};
+
+/**
+ * Convert edosteps into a list of plausible HarmonicCoordinates.
+ * 
+ * @param {Number} edosteps 
+ * @returns An array of HarmonicCoordinates representing possible coordinates this edostep maps to.
+ */
 function convertStepsToPossibleCoord(steps) {
-    let octaves = math.floor(steps / 31);
-    let dieses = mod(steps, 31);
+    let octaves = math.floor(steps / EDO);
+    let edosteps = mod(steps, EDO);
     // the .add function causes this function to return an entirely new copy of HarmonicCoordinates
     // objects so it is now ok to modify the returned coordinates from this function.
-    return RATIOS31[dieses].map(x => x.add(new HarmonicCoordinates(octaves, 0, 0, 0, 0)));
+    if (EDO == 31)
+        return RATIOS31[edosteps].map(x => x.add(new HarmonicCoordinates(octaves, 0, 0, 0, 0)));
+    else if (EDO == 22)
+        return RATIOS22[edosteps].map(x => x.add(new HarmonicCoordinates(octaves, 0, 0, 0, 0)));
+    else
+        alert("EDO not supported");
+
 }
 
-const DIESES_TO_FIFTHS_MAP = (() => {
+/**
+ * A key-value-pair mapping edosteps to number of fifths spanned.
+ */
+const EDOSTEPS_TO_FIFTHS_MAP = (() => {
     let x = {};
     let d = 0;
-    for (let fifths = 0; fifths < 31; fifths++) {
+    // Number of edosteps for the best P5 approximation.
+    // Assumes patent val/common 'default' 3-limit map.
+    let fifthsize = Math.round(EDO * Math.log2(3/2));
+    for (let fifths = 0; fifths < EDO; fifths++) {
         x[d] = fifths;
-        d = (d + 18) % 31;
+        d = (d + fifthsize) % EDO;
     }
     return x;
 })();

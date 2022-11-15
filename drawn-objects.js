@@ -191,9 +191,9 @@ class Ball {
         this.presence = presence;
         this.stepsFromA = stepsFromA;
         [this.x, this.y] = this.harmCoords.toUnscaledCoords();
-        let dieses = mod(stepsFromA, 31);
-        let octaves = Math.floor(stepsFromA / 31) + 4;
-        this.hue = MIN_FIFTH_HUE + (MAX_FIFTH_HUE - MIN_FIFTH_HUE) * DIESES_TO_FIFTHS_MAP[dieses] / 31;
+        let edosteps = mod(stepsFromA, EDO);
+        let octaves = Math.floor(stepsFromA / EDO) + 4;
+        this.hue = MIN_FIFTH_HUE + (MAX_FIFTH_HUE - MIN_FIFTH_HUE) * EDOSTEPS_TO_FIFTHS_MAP[edosteps] / EDO;
         this.saturation = 95 - 25 * (octaves - 2) / 5 // Let saturation start to fall at octave 2
         this.color = color(this.hue, this.saturation, 100 * Math.pow(presence, 0.5), 0.9);
         this.sizeUnscaled = Math.pow(presence, 0.5) * BALL_SIZE;
@@ -330,7 +330,7 @@ class BallsManager {
 
         if (SHOW_DEBUG_BALLS) {
             [this.harmonicCenterBall.x, this.harmonicCenterBall.y] = harmonicContext.tonalCenterUnscaledCoords;
-            let hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / 31 * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
+            let hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / EDO * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
             this.harmonicCenterBall.color = color(hue, 60, 100);
         }
     }
@@ -413,7 +413,7 @@ class KeyCenterParticleFountain {
     x = 0; y = 0;
 
     #createNewParticle(harmonicContext, dXdueToRot, dYdueToRot) {
-        let hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / 31 * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
+        let hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / EDO * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
         let speed = PARTICLE_MIN_SPEED + Math.random() * (PARTICLE_MAX_SPEED - PARTICLE_MIN_SPEED);
         let angle = Math.random() * Math.PI * 2;
         let dx = speed * Math.cos(angle);
