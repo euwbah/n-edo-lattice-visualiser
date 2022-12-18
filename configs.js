@@ -55,6 +55,13 @@ function preload() {
     UNDECIMAL_COLOR = color(25, 100, 80);
 }
 
+/**
+ * cb: critical band roughness 'least discordant' short term memory simulation method
+ * l2: least L2 norm distance from true centroid/origin method
+ * l2eo: least L2 norm distance from effective origin method
+ * @type {'cb' | 'l2'}
+ */
+const HARMONIC_CONTEXT_METHOD = 'l2';
 
 let MAX_SHORT_TERM_MEMORY = 7;
 let MAX_DISSONANCE = 23;
@@ -98,14 +105,18 @@ let MAX_FATIGUE_SECS = 0.6;
 /**
  * Prevents harmonic context from going out of hand
 See HarmonicCoordinates.harmonicDistance() for heuristic implementation.*/
-let MAX_HARMONIC_DISTANCE = 13;
+let MAX_HARMONIC_DISTANCE = 30;
 /**
  * How much does being a non-chord-tone affect the saturation of a ball.
 the closer the value to zero, the higher the effect. */
-let NON_CHORD_TONE_SAT_EFFECT = 0.5;
+let NON_CHORD_TONE_SAT_EFFECT = 0.6;
 /**
  * How much does being a non-chord-tone affect the size of a ball. */
 let NON_CHORD_TONE_SIZE_EFFECT = 0.75;
+/**
+ * When a key is held, the ball will be at least this size.
+ */
+let BALL_SUSTAIN_SCALE_FACTOR = 0.3;
 
 let RESET_TIME_SECS = 1;
 
@@ -145,13 +156,19 @@ let MIN_TEXT_SIZE_PX = 14;
 let MAX_TEXT_SIZE_PX = 25;
 
 /**
- * @type {'exp2d'|'exppolar'}
+ * @type {'exp2d'|'exppolar'|'3d'}
  */
-let PROJECTION_TYPE = 'exp2d';
+let PROJECTION_TYPE = '3d';
+let IS_3D = PROJECTION_TYPE === '3d';
+
+/**
+ * Camera config for 2D modes.
+ */
 let MAX_ZOOM = 65;
 let MIN_ZOOM = 12;
-let MAX_ZOOM_STD_DEV = 1;
-let MIN_ZOOM_STD_DEV = 20;
+let MAX_ZOOM_STD_DEV = 1; // this std dev value will yield max zoom
+let MIN_ZOOM_STD_DEV = 20; // this std dev value will yield min zoom
+
 /**
  * When in 'exp2d' projection mode, x and y coordinates will be set to the
  * power of this exponent.
@@ -173,6 +190,19 @@ let CAM_SPEED = 0.6;
 let CAM_SPEED_HAPPENINGNESS = 3.8;
 
 /**
+ * Camera config for 3D
+ * 
+ * In 3D, zoom settings are based on standard deviation of ball positions
+ * affecting distance of camera from the centroid.
+ */
+let MIN_CAM_DIST = 80;
+let MAX_CAM_DIST = 400;
+let DIST_STD_DEV_RATIO = 5; // Each unit std dev will yield add this much cam distance
+let DIST_CHANGE_SPEED = 0.5;
+
+/**
+ * Rotator for 2D projection mode only.
+ * 
  * The HAPPENINGNESS value where the projection starts rotating.
  * @type {number}
  */
@@ -219,14 +249,15 @@ let PARTICLE_MIN_SIZE = 0.1;
 let PARTICLE_MAX_SIZE = 0.3;
 let PARTICLE_MAX_CHANCE = 0.75;
 let PARTICLE_MIN_CHANCE = 0.1;
+let MAX_PARTICLES = 100;
 
-let BALL_SIZE = 1.45;
+let BALL_SIZE = 2.6;
 let LINE_THICKNESS = 0.2;
 let MIN_LINE_THICKNESS_PX = 2;
 let MAX_LINE_THICKNESS_PX = 10;
 
 let USE_SHADERS = true;
-let SHADER_BLUR_COEF = 0.05;
+let SHADER_BLUR_COEF = 0.07;
 let SHADER_BLOOM_AMOUNT = 40;
 
 /**

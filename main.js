@@ -47,7 +47,7 @@ function setup() {
     cvs.id('mycanvas');
     colorMode(HSB, 360, 100, 100, 1);
     noStroke();
-    GRAPHICS = createGraphics(windowWidth, windowHeight);
+    GRAPHICS = createGraphics(windowWidth, windowHeight, WEBGL);
     GRAPHICS.colorMode(HSB, 360, 100, 100, 1);
     smooth();
     setAttributes('antialias', true);
@@ -85,15 +85,18 @@ let oldDRotator = 0;
 
 function draw() {
     background(0);
-    GRAPHICS.background(0);
+    GRAPHICS.clear();
+    if (IS_3D) {
+        GRAPHICS.ambientLight(90);
+    }
 
     let [held, sustained] = countExistingKeysState();
     addHappeningness(deltaTime / 4000 * (held * HELD_NOTE_HAPPENINGNESS + sustained * SUSTAINED_NOTE_HAPPENINGNESS));
     HAPPENINGNESS = Math.max(0, HAPPENINGNESS - Math.pow(HAPPENINGNESS * deltaTime / 2000, 1.1));
 
     let dRotator = (Math.pow(Math.max(0, (HAPPENINGNESS - ROTATOR_START) / (1 - ROTATOR_START)), 2)
-                        - ROTATOR / (1 + 2 * HAPPENINGNESS * MAX_ROTATION_AMOUNT))
-                    * deltaTime / 500 * (1 - HAPPENINGNESS) * ROTATOR_SPEED;
+        - ROTATOR / (1 + 2 * HAPPENINGNESS * MAX_ROTATION_AMOUNT))
+        * deltaTime / 500 * (1 - HAPPENINGNESS) * ROTATOR_SPEED;
     dRotator = dRotator * (1 - ROTATOR_INERTIA) + oldDRotator * ROTATOR_INERTIA;
     ROTATOR += dRotator;
     oldDRotator = dRotator;
@@ -101,12 +104,15 @@ function draw() {
     harmonicContext.tick();
     ballManager.tick(KEYS_STATE, harmonicContext);
     scaffoldingManager.tick();
-    camera.tick(ballManager.stdDeviation, dRotator);
+    camera.tick(ballManager.stdDeviation, dRotator, GRAPHICS);
     harmonicCentroidParticleFountain.tick(harmonicContext, dRotator, camera);
 
+    GRAPHICS.push();
+    GRAPHICS.noStroke();
     harmonicCentroidParticleFountain.draw(camera, GRAPHICS);
     scaffoldingManager.draw(camera, GRAPHICS);
     ballManager.draw(camera, GRAPHICS);
+    GRAPHICS.pop();
 
     let shaderBlurCoef = SHADER_BLUR_COEF + Math.pow(HAPPENINGNESS, 1.5) * 1.1;
     document.getElementById('mycanvas').style.filter =
@@ -140,18 +146,18 @@ function draw() {
         shaderBlur3.setUniform('direction', [shaderBlurCoef, 0]);
         blurPass4.rect(0, 0, windowWidth, windowHeight);
 
-        blurPass5.shader(shaderBlur4);
-        shaderBlur4.setUniform('brightness', Math.pow(HAPPENINGNESS, 2) * 0.1);
-        shaderBlur4.setUniform('tex0', blurPass4);
-        shaderBlur4.setUniform('texelSize', [1 / windowWidth, 1 / windowHeight]);
-        shaderBlur4.setUniform('direction', [0, shaderBlurCoef]);
-        blurPass5.rect(0, 0, windowWidth, windowHeight);
+        // blurPass5.shader(shaderBlur4);
+        // shaderBlur4.setUniform('brightness', Math.pow(HAPPENINGNESS, 2) * 0.1);
+        // shaderBlur4.setUniform('tex0', blurPass4);
+        // shaderBlur4.setUniform('texelSize', [1 / windowWidth, 1 / windowHeight]);
+        // shaderBlur4.setUniform('direction', [0, shaderBlurCoef]);
+        // blurPass5.rect(0, 0, windowWidth, windowHeight);
 
-        bloomPass6.shader(shaderBloom2);
-        shaderBloom2.setUniform('tex0', bloomPass3);
-        shaderBloom2.setUniform('tex1', blurPass5);
-        shaderBloom2.setUniform('bloomAmount', SHADER_BLOOM_AMOUNT);
-        bloomPass6.rect(0, 0, windowWidth, windowHeight);
+        // bloomPass6.shader(shaderBloom2);
+        // shaderBloom2.setUniform('tex0', bloomPass3);
+        // shaderBloom2.setUniform('tex1', blurPass5);
+        // shaderBloom2.setUniform('bloomAmount', SHADER_BLOOM_AMOUNT);
+        // bloomPass6.rect(0, 0, windowWidth, windowHeight);
 
         image(blurPass4, 0, 0, windowWidth, windowHeight);
     } else {
@@ -163,20 +169,32 @@ function draw() {
     fill(0, 0, 100)
     text(VERSION, 10, 10);
     if (DEBUG) {
+        text(`fps: ${(1 / (deltaTime / 1000)).toFixed(1)} `, 60, 10);
         textSize(17);
-        text(`fps: ${(1 / (deltaTime / 1000)).toFixed(1)} ` +
-            `camera: ${camera.centerX.toFixed(1)}, ${camera.centerY.toFixed(1)}, ` +
-            `zoom: ${camera.zoom.toFixed(1)}, std dev: ${ballManager.stdDeviation.toFixed(2)}`,
-            10, 40);
-        text(`happening: ${HAPPENINGNESS.toFixed(3)}, diss: ${harmonicContext.dissonance.toFixed(2)} ` +
-            `/ ${harmonicContext.effectiveMaxDiss.toFixed(2)} [${harmonicContext.shortTermMemory.length}], ` +
-            `rot: ${dRotator.toFixed(5)}`,
-            10, 65);
+        if (!IS_3D) {
+            text(`camera: ${camera.centerX.toFixed(1)}, ${camera.centerY.toFixed(1)}, ` +
+                `zoom: ${camera.zoom.toFixed(1)}, std dev: ${ballManager.stdDeviation.toFixed(2)}`,
+                10, 40);
+            text(`happening: ${HAPPENINGNESS.toFixed(3)}, diss: ${harmonicContext.dissonance.toFixed(2)} ` +
+                `/ ${harmonicContext.effectiveMaxDiss.toFixed(2)} [${harmonicContext.shortTermMemory.length}], ` +
+                `rot: ${dRotator.toFixed(5)}`,
+                10, 65);
+        }
+        else {
+            text(`center: ${camera.centerX.toFixed(1)}, ${camera.centerY.toFixed(1)}, ${camera.centerZ.toFixed(1)}, ` +
+                `dist: ${camera.dist.toFixed(1)}, std dev: ${ballManager.stdDeviation.toFixed(2)}`,
+                10, 40);
+            text(`happening: ${HAPPENINGNESS.toFixed(3)}, diss: ${harmonicContext.dissonance.toFixed(2)} ` +
+                `/ ${harmonicContext.effectiveMaxDiss.toFixed(2)} [${harmonicContext.shortTermMemory.length}], ` +
+                `theta: ${camera.theta.toFixed(2)}, phi: ${camera.phi.toFixed(2)}`,
+                10, 65);
+        }
         text(`harm dist max: ${harmonicContext.maxHarmonicDistance.toFixed(2)}, ` +
             `mean: ${harmonicContext.meanHarmonicDistance.toFixed(2)}`,
             10, 90);
+        text(`balls: ${ballManager.numBalls}, part: ${harmonicCentroidParticleFountain.numParticles}`, 10, 120)
         textSize(23);
-        text(`${harmonicContext.effectiveOrigin.toMonzoString()}`, 10, 120);
+        text(`${harmonicContext.effectiveOrigin.toMonzoString()}`, 10, 150);
     }
 }
 

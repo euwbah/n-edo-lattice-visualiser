@@ -44,6 +44,23 @@ const dp7droty = () => P7_len * Math.log2(7) * Math.cos(toRad(-P7_angle) + ROTAT
 const dp11drotx = () => -P11_len * Math.log2(11) * Math.sin(toRad(-P11_angle) + ROTATOR * Math.log2(11));
 const dp11droty = () => P11_len * Math.log2(11) * Math.cos(toRad(-P11_angle) + ROTATOR * Math.log2(11));
 
+const DIST_SCALE_FACTOR_3D = 30;
+const P2_3d_X = 0;
+const P2_3d_Y = Math.log2(2);
+const P2_3d_Z = 0;
+const P3_3d_X = Math.log2(3);
+const P3_3d_Y = 0;
+const P3_3d_Z = 0;
+const P5_3d_X = Math.log2(5) * Math.sin(toRad(75)) * Math.sin(toRad(22.5));
+const P5_3d_Y = Math.log2(5) * Math.cos(toRad(75));
+const P5_3d_Z = Math.log2(5) * Math.sin(toRad(75)) * Math.cos(toRad(22.5));
+const P7_3d_X = Math.log2(7) * Math.sin(toRad(30)) * Math.sin(toRad(67.5));
+const P7_3d_Y = Math.log2(7) * Math.cos(toRad(30));
+const P7_3d_Z = Math.log2(7) * Math.sin(toRad(30)) * Math.cos(toRad(67.5));
+const P11_3d_X = Math.log2(11) * Math.sin(toRad(45)) * Math.sin(toRad(45));
+const P11_3d_Y = Math.log2(11) * Math.cos(toRad(45));
+const P11_3d_Z = Math.log2(11) * Math.sin(toRad(45)) * Math.cos(toRad(45));
+
 class HarmonicCoordinates {
     #p2; #p3; #p5; #p7; #p11;
 
@@ -149,15 +166,24 @@ class HarmonicCoordinates {
     }
 
     toUnscaledCoords() {
+        if (IS_3D) {
+            return [
+                DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_X + this.p3 * P3_3d_X + this.p5 * P5_3d_X + this.p7 * P7_3d_X + this.p11 * P11_3d_X),
+                DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_Y + this.p3 * P3_3d_Y + this.p5 * P5_3d_Y + this.p7 * P7_3d_Y + this.p11 * P11_3d_Y),
+                DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_Z + this.p3 * P3_3d_Z + this.p5 * P5_3d_Z + this.p7 * P7_3d_Z + this.p11 * P11_3d_Z),
+            ]
+        }
+
         return [
             this.p2 * P2_X() + this.p3 * P3_X() + this.p5 * P5_X() + this.p7 * P7_X() + this.p11 * P11_X(),
-            this.p2 * P2_Y() + this.p3 * P3_Y() + this.p5 * P5_Y() + this.p7 * P7_Y() + this.p11 * P11_Y()
+            this.p2 * P2_Y() + this.p3 * P3_Y() + this.p5 * P5_Y() + this.p7 * P7_Y() + this.p11 * P11_Y(),
+            0
         ]
     }
 
     /**
      * Use this to counter global translation when rotation happens and the
-     * key center is far from the origin.
+     * key center is far from the origin. Only for 2D.
      * @returns {number[]}
      */
     get dUnscaledCoords_dRotation() {
@@ -458,7 +484,7 @@ const RATIOS22 = {
  * Convert edosteps into a list of plausible HarmonicCoordinates.
  * 
  * @param {Number} edosteps 
- * @returns An array of HarmonicCoordinates representing possible coordinates this edostep maps to.
+ * @returns An array of `HarmonicCoordinates` representing possible coordinates this edostep maps to.
  */
 function convertStepsToPossibleCoord(steps) {
     let octaves = math.floor(steps / EDO);

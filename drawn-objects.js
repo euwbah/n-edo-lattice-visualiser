@@ -1,19 +1,64 @@
 /**
- * Algorithm:
- * Harmonic Coordinates -> Unscaled coordinates -> Scaled coordinates -> Projection
+ * 2D Algorithm:
+ * Harmonic Coordinates -> Unscaled coordinates -> Projection -> Screen coordinates
+ * 
+ * 3D Algorithm:
+ * Harmonic Coordinates -> Unscaled coordinates -> P5's 3D projection
+ * 
+ * In 3D, camera always points at centerX/Y/Z and is located in terms of
+ * spherical coordinates (radius, theta, phi) about the center point.
  */
 class Camera {
     targetCenterX = 0;
     targetCenterY = 0;
+    targetCenterZ = 0;
     centerX = 0;
     centerY = 0;
+    centerZ = 0; // +ve z is outward from the screen
+
+    /**
+     * @type {number}
+     * 
+     * The rotation of the camera about the center point along the X-Z plane. (circling the Y axis)
+     * For 3D.
+     * 
+     * 0: right of center
+     * PI/2: in front of center
+     * PI: left of center
+     * 3PI/2: behind center
+     * 
+     * x = radius * sin(phi) * cos(theta)
+     * z = radius * sin(phi) * sin(theta)
+     */
+    theta = 1/2*Math.PI; // start 'in front' of the center point
+
+    /**
+     * @type {number}
+     * 
+     * The Y rotation of the camera about the center point after applying theta rotation.
+     * For 3D.
+     * 
+     * 0: directly above center
+     * PI/2: center
+     * PI: directly below center
+     * 
+     * y = radius * cos(phi)
+     */
+    phi = Math.PI * 0.65; // start under center point
+
     /**
      * @type {HarmonicContext}
      */
     #harmonicContext;
+
+    // These zoom settings are for 2D
     zoom = MAX_ZOOM;
     zoomTarget = MAX_ZOOM;
     #effectiveExponent = EXPONENT;
+
+    // These zoom settings are for 3D
+    dist = MIN_CAM_DIST;
+    distTarget = MIN_CAM_DIST;
 
     constructor(harmonicContext) {
         this.#harmonicContext = harmonicContext;
@@ -23,51 +68,76 @@ class Camera {
         return this.#effectiveExponent;
     }
 
-    tick(stdDeviation, dRotator) {
-        [this.targetCenterX, this.targetCenterY] = this.#harmonicContext.tonalCenterUnscaledCoords;
+    tick(stdDeviation, dRotator, graphics) {
+        [this.targetCenterX, this.targetCenterY, this.targetCenterZ] = this.#harmonicContext.tonalCenterUnscaledCoords;
         let dt = deltaTime > 1000 ? 1000 : deltaTime;
         this.centerX += (this.targetCenterX - this.centerX) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
         this.centerY += (this.targetCenterY - this.centerY) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+        this.centerZ += (this.targetCenterZ - this.centerZ) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
 
-        // counter rotation:
-        let [dX_dRot, dY_dRot] = this.#harmonicContext.dCenterCoords_dRotator;
-        // move the camera an amount equal to the amount of translation caused by the
-        // rotation of the vectors.
-        // THIS WORKS. TRUST ME. IF YOU REMOVE THESE TWO LINES NOTHING WILL SHOW UP ON THE
-        // SCREEN AFTER SPAMMING TONS OF NOTES.
-        let dXDueToRot = dX_dRot * dRotator;
-        let dYDueToRot = dY_dRot * dRotator;
+        if (!IS_3D) {
+            // counter rotation:
+            let [dX_dRot, dY_dRot] = this.#harmonicContext.dCenterCoords_dRotator;
+            // move the camera an amount equal to the amount of translation caused by the
+            // rotation of the vectors.
+            // THIS WORKS. TRUST ME. IF YOU REMOVE THESE TWO LINES NOTHING WILL SHOW UP ON THE
+            // SCREEN AFTER SPAMMING TONS OF NOTES.
+            let dXDueToRot = dX_dRot * dRotator;
+            let dYDueToRot = dY_dRot * dRotator;
 
-        let rotLagX = - dXDueToRot * CAM_ROTATIONAL_LAG_COEF;
-        let rotLagY = - dYDueToRot * CAM_ROTATIONAL_LAG_COEF;
+            let rotLagX = - dXDueToRot * CAM_ROTATIONAL_LAG_COEF;
+            let rotLagY = - dYDueToRot * CAM_ROTATIONAL_LAG_COEF;
 
-        // Project the rotational lag as a vector from the current camera's position
-        // and make sure it doesn't exceed the maximum lag in pixels.
-        let [projRotLagX, projRotLagY] = this.project([rotLagX + this.centerX, rotLagY + this.centerY]);
-        if (Math.abs(projRotLagX) > CAM_MAX_ROTATIONAL_LAG_X_PX)
-            projRotLagX = CAM_MAX_ROTATIONAL_LAG_X_PX * Math.sign(projRotLagX);
-        if (Math.abs(projRotLagY) > CAM_MAX_ROTATIONAL_LAG_Y_PX)
-            projRotLagY = CAM_MAX_ROTATIONAL_LAG_Y_PX * Math.sign(projRotLagY);
+            // Project the rotational lag as a vector from the current camera's position
+            // and make sure it doesn't exceed the maximum lag in pixels.
+            let [projRotLagX, projRotLagY] = this.project([rotLagX + this.centerX, rotLagY + this.centerY]);
+            if (Math.abs(projRotLagX) > CAM_MAX_ROTATIONAL_LAG_X_PX)
+                projRotLagX = CAM_MAX_ROTATIONAL_LAG_X_PX * Math.sign(projRotLagX);
+            if (Math.abs(projRotLagY) > CAM_MAX_ROTATIONAL_LAG_Y_PX)
+                projRotLagY = CAM_MAX_ROTATIONAL_LAG_Y_PX * Math.sign(projRotLagY);
 
-        [rotLagX, rotLagY] = this.inverseProject([projRotLagX, projRotLagY]);
-        rotLagX -= this.centerX; // Undo the offset that was included for calculation purposes
-        rotLagY -= this.centerY;
+            [rotLagX, rotLagY] = this.inverseProject([projRotLagX, projRotLagY]);
+            rotLagX -= this.centerX; // Undo the offset that was included for calculation purposes
+            rotLagY -= this.centerY;
 
-        this.centerX += dXDueToRot + rotLagX;
-        this.centerY += dYDueToRot + rotLagY;
+            this.centerX += dXDueToRot + rotLagX;
+            this.centerY += dYDueToRot + rotLagY;
 
-        let targetExp = EXPONENT + HAPPENINGNESS * EXPONENT_GROWTH;
-        this.#effectiveExponent += (targetExp - this.#effectiveExponent) * dt / 800;
+            let targetExp = EXPONENT + HAPPENINGNESS * EXPONENT_GROWTH;
+            this.#effectiveExponent += (targetExp - this.#effectiveExponent) * dt / 800;
 
-        let scaledDeviation = (stdDeviation - MAX_ZOOM_STD_DEV) / (MIN_ZOOM_STD_DEV - MAX_ZOOM_STD_DEV);
-        scaledDeviation = Math.max(0, Math.min(1, scaledDeviation));
-        this.zoomTarget = (MIN_ZOOM + (MAX_ZOOM - MIN_ZOOM) * (1 - scaledDeviation)) * (1 - HAPPENINGNESS * ZOOM_SHRINK);
-        this.zoomTarget = Math.max(1, this.zoomTarget); // 1 is the absolute minimum zoom
-        this.zoom += (this.zoomTarget - this.zoom) * dt / 1000 * ZOOM_CHANGE_SPEED;
+            let scaledDeviation = (stdDeviation - MAX_ZOOM_STD_DEV) / (MIN_ZOOM_STD_DEV - MAX_ZOOM_STD_DEV);
+            scaledDeviation = Math.max(0, Math.min(1, scaledDeviation));
+            this.zoomTarget = (MIN_ZOOM + (MAX_ZOOM - MIN_ZOOM) * (1 - scaledDeviation)) * (1 - HAPPENINGNESS * ZOOM_SHRINK);
+            this.zoomTarget = Math.max(1, this.zoomTarget); // 1 is the absolute minimum zoom
+            this.zoom += (this.zoomTarget - this.zoom) * dt / 1000 * ZOOM_CHANGE_SPEED;
+        } else {
+            this.distTarget = MIN_CAM_DIST + stdDeviation * DIST_STD_DEV_RATIO + HAPPENINGNESS * 150;
+            this.distTarget = Math.max(MIN_CAM_DIST, Math.min(MAX_CAM_DIST, this.distTarget));
+            this.dist += (this.distTarget - this.dist) * dt / 1000 * DIST_CHANGE_SPEED;
+
+            this.theta += dt / 1000 * HAPPENINGNESS * 2;
+            if (this.theta > 2 * Math.PI) this.theta -= 2 * Math.PI;
+
+            this.phi = 0.97 * this.phi + 0.03 * Math.PI * (0.65 - Math.pow(HAPPENINGNESS, 0.7) * 0.25);
+
+            let camX = this.centerX + this.dist * Math.sin(this.phi) * Math.cos(this.theta);
+            let camY = this.centerY + this.dist * Math.cos(this.phi);
+            let camZ = this.centerZ + this.dist * Math.sin(this.phi) * Math.sin(this.theta);
+            graphics.lightFalloff(0.5, 0.1, 0.1)
+            graphics.pointLight(200, 200, 200, camX, camY, camZ);
+            graphics.camera(
+                camX, camY, camZ,
+                this.centerX, this.centerY, this.centerZ,
+                0, 1, 0 // up vector
+            );
+        }
     }
 
     /**
      * Project unscaled coordinates into cartesian coordinates from origin.
+     * 
+     * SHOULD NOT BE CALLED IF IN 3D MODE.
      * @param {[number, number]} unscaledCoordinates
      */
     project(unscaledCoordinates) {
@@ -165,22 +235,27 @@ class Camera {
     }
 
     toScreenCoordinates(cartesian) {
+        // no need for windowWidth/height offset since we're using WEBGL renderer for global GRAPHICS.
         let jitter = Math.pow(Math.max(0, HAPPENINGNESS - 0.50) / (1 - 0.50), 1.7) * 10;
-        return [cartesian[0] + windowWidth/2 + (Math.random() - 0.5) * jitter,
-                windowHeight/2 - cartesian[1] + (Math.random() - 0.5) * jitter];
+        return [cartesian[0] /*+ windowWidth/2*/ + (Math.random() - 0.5) * jitter,
+                /*windowHeight/2*/ - cartesian[1] + (Math.random() - 0.5) * jitter];
     }
 }
 
 class Ball {
+    /**
+     * @type {HarmonicCoordinates}
+     */
     harmCoords;
     relativeHarmCoords;
     presence; // Number from 0-1
     stepsFromA;
     x;
     y;
+    z;
     hue;
     saturation;
-    color;
+    ballColor;
     sizeUnscaled;
     isChordTone = true;
     isDebug = false; // set this manuallyg to true if the ball is debug and has no relativeHarmCoords.
@@ -190,12 +265,12 @@ class Ball {
         this.harmCoords = harmCoords;
         this.presence = presence;
         this.stepsFromA = stepsFromA;
-        [this.x, this.y] = this.harmCoords.toUnscaledCoords();
+        [this.x, this.y, this.z] = this.harmCoords.toUnscaledCoords();
         let edosteps = mod(stepsFromA, EDO);
         let octaves = Math.floor(stepsFromA / EDO) + 4;
         this.hue = MIN_FIFTH_HUE + (MAX_FIFTH_HUE - MIN_FIFTH_HUE) * EDOSTEPS_TO_FIFTHS_MAP[edosteps] / EDO;
         this.saturation = 95 - 25 * (octaves - 2) / 5 // Let saturation start to fall at octave 2
-        this.color = color(this.hue, this.saturation, 100 * Math.pow(presence, 0.5), 0.9);
+        this.ballColor = color(this.hue, this.saturation, 100 * Math.pow(presence, 0.5), 0.9);
         this.sizeUnscaled = Math.pow(presence, 0.5) * BALL_SIZE;
     }
 
@@ -207,31 +282,25 @@ class Ball {
     tick(keyState, harmonicContext) {
         this.isChordTone = harmonicContext.containsNote(this.stepsFromA);
         if (this.stepsFromA in keyState) {
-            if (this.isChordTone) {
-                if (this.presence > 0.4)
-                    this.presence = this.presence * (1 - 0.5 * deltaTime / 1000);
-                else if (this.presence < 0.4)
-                    this.presence = 0.4;
-            } else {
-                if (this.presence > 0.3)
-                    this.presence = this.presence * (1 - 0.75 * deltaTime / 1000);
-                else if (this.presence < 0.3)
-                    this.presence = 0.3;
-            }
+            if (this.presence > BALL_SUSTAIN_SCALE_FACTOR)
+                this.presence = this.presence * (1 - (2 - HAPPENINGNESS) * deltaTime / 1000);
+            else if (this.presence < BALL_SUSTAIN_SCALE_FACTOR)
+                this.presence = BALL_SUSTAIN_SCALE_FACTOR;
         } else {
-            if (this.isChordTone) {
-                this.presence = this.presence * (1 - deltaTime / 1000) - 0.4 * deltaTime / 1000;
-            } else {
-                this.presence = this.presence * (1 - 3 * deltaTime / 1000) - 1 * deltaTime / 1000;
-            }
+            this.presence = this.presence * (1 - 2 * deltaTime / 1000) - 0.01 * deltaTime / 1000;
         }
 
         let nonChordToneMult = this.isChordTone ? 1 : NON_CHORD_TONE_SAT_EFFECT;
 
-        this.color = color(this.hue, this.saturation * nonChordToneMult, 100 * Math.pow(this.presence, 0.5));
+        this.ballColor = color(
+            this.hue, 
+            this.saturation * nonChordToneMult, 
+            this.presence * 40 + 40, 
+            0.7 * Math.pow(this.presence, 0.5)
+        );
         this.sizeUnscaled = Math.pow(this.presence, 0.5) * BALL_SIZE;
 
-        [this.x, this.y] = this.harmCoords.toUnscaledCoords();
+        [this.x, this.y, this.z] = this.harmCoords.toUnscaledCoords();
 
         this.relativeHarmCoords = harmonicContext.relativeToEffectiveOrigin(this.harmCoords);
     }
@@ -242,26 +311,52 @@ class Ball {
      * @param {p5.Graphics} graphics
      */
     draw(camera, graphics) {
-        let unscaledCoords = [this.x, this.y];
-        let [x, y] = camera.toScreenCoordinates(camera.project(unscaledCoords));
-        let size = camera.projectScalar(this.sizeUnscaled * (this.isChordTone ? 1 : NON_CHORD_TONE_SIZE_EFFECT), unscaledCoords);
-        graphics.noStroke();
-        graphics.fill(this.color);
-        graphics.circle(x, y, size);
-
-        if (!this.isDebug) {
-            graphics.fill(hue(this.color), 35, 100, 1);
-            graphics.textAlign(CENTER, CENTER);
-            let tSize = Math.max(MIN_TEXT_SIZE_PX, Math.min(MAX_TEXT_SIZE_PX, size * 0.6));
-            graphics.textSize(tSize);
-            if (TEXT_TYPE === 'relmonzo') {
-                graphics.text(this.relativeHarmCoords.toMonzoString(), x, y + size);
-            } else if (TEXT_TYPE === 'relfraction') {
-                let [num, den] = this.relativeHarmCoords.toRatio();
-                graphics.text(num, x, y + size - 5);
-                graphics.text(`__`, x, y + size - 5 + tSize * 0.1);
-                graphics.text(den, x, y + size - 5 + tSize);
+        if (!IS_3D) {
+            let unscaledCoords = [this.x, this.y];
+            let [x, y] = camera.toScreenCoordinates(camera.project(unscaledCoords));
+            let size = camera.projectScalar(this.sizeUnscaled * (this.isChordTone ? 1 : NON_CHORD_TONE_SIZE_EFFECT), unscaledCoords);
+            graphics.noStroke();
+            graphics.fill(this.ballColor);
+            graphics.circle(x, y, size);
+            
+            if (!this.isDebug) {
+                graphics.fill(hue(this.ballColor), 35, 100, 1);
+                graphics.textAlign(CENTER, CENTER);
+                let tSize = Math.max(MIN_TEXT_SIZE_PX, Math.min(MAX_TEXT_SIZE_PX, size * 0.6));
+                graphics.textSize(tSize);
+                if (TEXT_TYPE === 'relmonzo') {
+                    graphics.text(this.relativeHarmCoords.toMonzoString(), x, y + size);
+                } else if (TEXT_TYPE === 'relfraction') {
+                    let [num, den] = this.relativeHarmCoords.toRatio();
+                    graphics.text(num, x, y + size - 5);
+                    graphics.text(`__`, x, y + size - 5 + tSize * 0.1);
+                    graphics.text(den, x, y + size - 5 + tSize);
+                }
             }
+        } else {
+            graphics.push();
+            let size = this.sizeUnscaled * 10;
+            graphics.translate(this.x, this.y, this.z);
+            graphics.specularMaterial(this.ballColor);
+            graphics.shininess(80);
+            graphics.sphere(this.isDebug ? size * 0.5 : size);
+            
+            if (!this.isDebug) {
+                graphics.fill(hue(this.ballColor), 35, 100, 1);
+                graphics.textAlign(CENTER, CENTER);
+                let tSize = 0;
+                graphics.textSize(tSize);
+                graphics.translate(0, -10, 0);
+                if (TEXT_TYPE === 'relmonzo') {
+                    graphics.text(this.relativeHarmCoords.toMonzoString(), 0, -5);
+                } else if (TEXT_TYPE === 'relfraction') {
+                    let [num, den] = this.relativeHarmCoords.toRatio();
+                    graphics.text(num, 0, -5);
+                    graphics.text(`__`, 0, -5 + tSize * 0.1);
+                    graphics.text(den, 0, -5 + tSize);
+                }
+            }
+            graphics.pop();
         }
     }
 }
@@ -272,7 +367,7 @@ class BallsManager {
      */
     balls = {};
     /**
-     * The mean of the standard deviation of the x and y coordinates of the balls.
+     * The mean of the standard deviation of the x, y (and z, if 3D) coordinates of the balls.
      */
     #stddev = 0;
     originBall;
@@ -283,12 +378,12 @@ class BallsManager {
     }
 
     setup() {
-        this.originBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.05);
-        this.originBall.color = color(0, 10, 80);
+        this.originBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.1);
+        this.originBall.ballColor = color(0, 10, 80, 0.3);
         this.originBall.isDebug = true;
 
         this.harmonicCenterBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.05);
-        this.harmonicCenterBall.color = color(0, 60, 100);
+        this.harmonicCenterBall.ballColor = color(0, 70, 100, 0.5);
         this.harmonicCenterBall.isDebug = true;
     }
 
@@ -314,24 +409,29 @@ class BallsManager {
     }
 
     tick(keyState, harmonicContext) {
-        let xValues = [], yValues = [];
+        let xValues = [], yValues = [], zValues = [];
         this.balls = Object.fromEntries(Object.entries(this.balls).filter(
             ([_,ball]) => {
                 ball.tick(keyState, harmonicContext);
                 xValues.push(ball.x);
                 yValues.push(ball.y);
+                zValues.push(ball.z);
                 return ball.presence > 0;
             }
         ));
-        if (xValues.length !== 0)
-            this.#stddev = (math.std(xValues) + math.std(yValues)) / 2;
+        if (xValues.length !== 0) {
+            if (!IS_3D)
+                this.#stddev = (math.std(xValues) + math.std(yValues)) / 2;
+            else
+                this.#stddev = (math.std(xValues) + math.std(yValues) + math.std(zValues)) / 3;
+        }
         else
             this.#stddev = 0;
 
         if (SHOW_DEBUG_BALLS) {
             [this.harmonicCenterBall.x, this.harmonicCenterBall.y] = harmonicContext.tonalCenterUnscaledCoords;
             let hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / EDO * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
-            this.harmonicCenterBall.color = color(hue, 60, 100);
+            this.harmonicCenterBall.ballColor = color(hue, 70, 100, 0.5);
         }
     }
 
@@ -341,34 +441,60 @@ class BallsManager {
      * @param {p5.Graphics} graphics buffer to draw to
      */
     draw(camera, graphics) {
-        for (const [_, ball] of Object.entries(this.balls)) {
-            ball.draw(camera, graphics);
-        }
-
         if (SHOW_DEBUG_BALLS) {
             this.originBall.draw(camera, graphics);
             this.harmonicCenterBall.draw(camera, graphics);
+        }
+        
+        for (const [_, ball] of Object.entries(this.balls)) {
+            ball.draw(camera, graphics);
         }
     }
 
     get stdDeviation() {
         return this.#stddev;
     }
+
+    get numBalls() {
+        return Object.keys(this.balls).length;
+    }
 }
 
 class Particle {
-    x; y;
-    dx; dy;
+    x; y; z;
+    dx; dy; dz;
     life;
     color;
     size;
     hue;
 
-    constructor(x, y, dx, dy, hue) {
+    constructor(x, y, z, dx, dy, dz, hue) {
         this.x = x;
         this.y = y;
+        this.z = z;
         this.dx = dx;
         this.dy = dy;
+        this.dz = dz;
+        this.life = 1;
+        this.hue = hue;
+        this.color = color(
+            this.hue,
+            100 * Math.pow((1 - this.life), 2),
+            50 + 50 * this.life,
+            Math.pow(this.life, 0.7));
+        this.size = (PARTICLE_MIN_SIZE + HAPPENINGNESS * (PARTICLE_MAX_SIZE - PARTICLE_MIN_SIZE)) * Math.pow(this.life, 0.7);
+    }
+
+    /**
+     * Use this function to reuse particle objects. Save the GC.
+     */
+    realive(x, y, z, dx, dy, dz, hue) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.dx = dx;
+        this.dy = dy;
+        this.dz = dz;
         this.life = 1;
         this.hue = hue;
         this.color = color(
@@ -382,27 +508,47 @@ class Particle {
     tick() {
         this.dx *= 1 - 0.5 * deltaTime/1000;
         this.dy *= 1 - 0.5 * deltaTime/1000;
+        this.dz *= 1 - 0.5 * deltaTime/1000;
         this.x += this.dx * deltaTime / 1000;
         this.y += this.dy * deltaTime / 1000;
+        this.z += this.dz * deltaTime / 1000;
         // 1 means fully alive and new
-        // 0 means dead
-        this.life = Math.max(0, this.life - deltaTime/1000 / PARTICLE_LIFE_SECS);
-        this.color = color(
-            this.hue,
-            100 * Math.pow((1 - this.life), 0.5),
-            50 + 50 * this.life,
-            Math.pow(this.life, 0.7));
-        this.size = (PARTICLE_MIN_SIZE + HAPPENINGNESS * (PARTICLE_MAX_SIZE - PARTICLE_MIN_SIZE)) * Math.pow(this.life, 0.7);
+        // <= 0 means dead
+        this.life -= deltaTime/1000 / PARTICLE_LIFE_SECS;
+
+        if (!IS_3D) {
+            this.color = color(
+                this.hue,
+                100 * Math.pow((1 - this.life), 0.5),
+                50 + 50 * this.life,
+                Math.pow(this.life, 0.7));
+            this.size = (PARTICLE_MIN_SIZE + HAPPENINGNESS * (PARTICLE_MAX_SIZE - PARTICLE_MIN_SIZE)) * Math.pow(this.life, 0.7);
+        }
+
+        // 3d particles are drawn by the fountain
     }
 
+    /**
+     * Draw the particle (only do this in 2D mode)
+     * In 3D, the particle fountain handles drawing
+     */
     draw(camera, graphics) {
-        let unscaledCoords = [this.x, this.y];
-        let [x, y] = camera.toScreenCoordinates(camera.project(unscaledCoords));
-        let size = camera.projectScalar(this.size, unscaledCoords);
-        graphics.noStroke();
-        graphics.fill(this.color);
-        graphics.circle(x, y, size);
+        if (this.life <= 0) return;
+
+        if (!IS_3D) {
+            let unscaledCoords = [this.x, this.y];
+            let [x, y] = camera.toScreenCoordinates(camera.project(unscaledCoords));
+            let size = camera.projectScalar(this.size, unscaledCoords);
+            graphics.noStroke();
+            graphics.fill(this.color);
+            graphics.circle(x, y, size);
+        } else {
+            // do nothing
+            // particle drawing handled by particle fountain to save on uniform state changes
+        }
     }
+
+    get isDead() {  return this.life <= 0; }
 }
 
 class KeyCenterParticleFountain {
@@ -410,19 +556,44 @@ class KeyCenterParticleFountain {
      * @type {[Particle]}
      */
     particles = [];
-    x = 0; y = 0;
+    /**
+     * Stores indexes of dead particles.
+     */
+    deadParticleIndices = [];
+    x = 0; y = 0; z = 0;
+    hue;
 
-    #createNewParticle(harmonicContext, dXdueToRot, dYdueToRot) {
-        let hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / EDO * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
+    /**
+     * Create a new particle.
+     * 
+     * @param {HarmonicContext} harmonicContext 
+     * @param {number} dXdueToRot only for 2d
+     * @param {number} dYdueToRot only for 2d
+     */
+    #createNewParticle(dXdueToRot, dYdueToRot) {
         let speed = PARTICLE_MIN_SPEED + Math.random() * (PARTICLE_MAX_SPEED - PARTICLE_MIN_SPEED);
         let angle = Math.random() * Math.PI * 2;
-        let dx = speed * Math.cos(angle);
-        let dy = speed * Math.sin(angle);
+        let dx = 0, dy = 0, dz = 0;
+        if (!IS_3D) {
+            dx = speed * Math.cos(angle);
+            dy = speed * Math.sin(angle);
 
-        dx += dXdueToRot * (1 - PARTICLE_ROTATIONAL_LAG_COEF);
-        dy += dYdueToRot * (1 - PARTICLE_ROTATIONAL_LAG_COEF);
-
-        this.particles.push(new Particle(this.x, this.y, dx, dy, hue));
+            dx += dXdueToRot * (1 - PARTICLE_ROTATIONAL_LAG_COEF);
+            dy += dYdueToRot * (1 - PARTICLE_ROTATIONAL_LAG_COEF);
+        } else {
+            speed *= 20;
+            let phi = Math.random() * Math.PI * 2;
+            dx = speed * Math.cos(angle) * Math.sin(phi);
+            dy = speed * Math.sin(angle) * Math.sin(phi);
+            dz = speed * Math.cos(phi);
+        }
+        if (this.particles.length < MAX_PARTICLES)
+            this.particles.push(new Particle(this.x, this.y, this.z, dx, dy, dz, this.hue));
+        else {
+            let deadParticleIdx = this.deadParticleIndices.pop() || Math.floor(Math.random() * this.particles.length);
+            let particle = this.particles[deadParticleIdx];
+            particle.realive(this.x, this.y, this.z, dx, dy, dz, this.hue);
+        }
     }
 
     /**
@@ -431,44 +602,84 @@ class KeyCenterParticleFountain {
      * @param {Camera} camera
      */
     tick(harmonicContext, dRotator, camera) {
-        this.particles = this.particles.filter(particle => {
-            particle.tick();
-            return particle.life > 0;
-        });
+        for (let i = 0; i < this.particles.length; i++) {
+            let particle = this.particles[i];
+            if (!particle.isDead) {
+                particle.tick();
+                // if particle died exactly during this tick, add its index to the dead
+                // particle list so that it will be the first to be revived later on.
+                if (particle.isDead) this.deadParticleIndices.push(i);
+            }
+        }
 
-        let [targetX, targetY] = harmonicContext.tonalCenterUnscaledCoords;
+        this.hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / EDO * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
+
+        let [targetX, targetY, targetZ] = harmonicContext.tonalCenterUnscaledCoords;
         this.x += (targetX - this.x) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
         this.y += (targetY - this.y) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
-        // counter rotation:
-        let [dX_dRot, dY_dRot] = harmonicContext.dCenterCoords_dRotator;
+        this.z += (targetZ - this.z) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
 
-        let dXdueToRot = dX_dRot * dRotator;
-        let dyDueToRot = dY_dRot * dRotator;
+        let dxDueToRot = 0, dyDueToRot = 0;
+        if (!IS_3D) {
+            // counter rotation:
+            let [dX_dRot, dY_dRot] = harmonicContext.dCenterCoords_dRotator;
 
-        let rotLagX = - dXdueToRot * HARMONIC_CENTER_ROTATIONAL_LAG_COEF;
-        let rotLagY = - dyDueToRot * HARMONIC_CENTER_ROTATIONAL_LAG_COEF;
+            dxDueToRot = dX_dRot * dRotator;
+            dyDueToRot = dY_dRot * dRotator;
 
-        let [projRotLagX, projRotLagY] = camera.project([rotLagX + this.x, rotLagY + this.y]);
-        if (Math.abs(projRotLagX) > HARMONIC_CENTER_MAX_ROTATIONAL_LAG_X_PX)
-            projRotLagX = HARMONIC_CENTER_MAX_ROTATIONAL_LAG_X_PX * Math.sign(projRotLagX);
-        if (Math.abs(projRotLagY) > HARMONIC_CENTER_MAX_ROTATIONAL_LAG_Y_PX)
-            projRotLagY = HARMONIC_CENTER_MAX_ROTATIONAL_LAG_Y_PX * Math.sign(projRotLagY);
+            let rotLagX = - dxDueToRot * HARMONIC_CENTER_ROTATIONAL_LAG_COEF;
+            let rotLagY = - dyDueToRot * HARMONIC_CENTER_ROTATIONAL_LAG_COEF;
 
-        [rotLagX, rotLagY] = camera.inverseProject([projRotLagX, projRotLagY]);
-        rotLagX -= this.x;
-        rotLagY -= this.y;
+            let [projRotLagX, projRotLagY] = camera.project([rotLagX + this.x, rotLagY + this.y]);
+            if (Math.abs(projRotLagX) > HARMONIC_CENTER_MAX_ROTATIONAL_LAG_X_PX)
+                projRotLagX = HARMONIC_CENTER_MAX_ROTATIONAL_LAG_X_PX * Math.sign(projRotLagX);
+            if (Math.abs(projRotLagY) > HARMONIC_CENTER_MAX_ROTATIONAL_LAG_Y_PX)
+                projRotLagY = HARMONIC_CENTER_MAX_ROTATIONAL_LAG_Y_PX * Math.sign(projRotLagY);
 
-        this.x += dXdueToRot + rotLagX;
-        this.y += dyDueToRot + rotLagY;
+            [rotLagX, rotLagY] = camera.inverseProject([projRotLagX, projRotLagY]);
+            rotLagX -= this.x;
+            rotLagY -= this.y;
+
+            this.x += dxDueToRot + rotLagX;
+            this.y += dyDueToRot + rotLagY;
+        }
 
         if (Math.random() > PARTICLE_MIN_CHANCE + HAPPENINGNESS * (PARTICLE_MAX_CHANCE - PARTICLE_MIN_CHANCE))
-            this.#createNewParticle(harmonicContext, dXdueToRot, dyDueToRot);
+            this.#createNewParticle(dxDueToRot, dyDueToRot);
     }
 
     draw(camera, graphics) {
-        for (let particle of this.particles) {
-            particle.draw(camera, graphics);
+        if (IS_3D) {
+            graphics.lightFalloff(0.5, 0.005, 0.015);
+            graphics.pointLight(this.hue, 80, 100, this.x, this.y, this.z);
+
+            // stores previous xyz translation value so that 
+            // translations can be done relative
+            let x = 0, y = 0, z = 0;
+
+            // in 3D mode, particles are drawn here
+            graphics.push();
+            graphics.specularMaterial(this.hue, 80, 70, 0.7);
+            graphics.shininess(60);
+            this.particles.forEach(particle => {
+                if (!particle.isDead) {
+                    graphics.translate(particle.x - x, particle.y - y, particle.z - z);
+                    x = particle.x;
+                    y = particle.y;
+                    z = particle.z;
+                    graphics.sphere(particle.life * 2, 5, 5);
+                }
+            });
+            graphics.pop();
+        } else {
+            for (let particle of this.particles) {
+                particle.draw(camera, graphics);
+            }
         }
+    }
+
+    get numParticles() {
+        return this.particles.length;
     }
 }
 
@@ -476,8 +687,10 @@ class Scaffolding {
     reasonForExisting; // Contains the most recent Ball object which requires the existence of this line.
     fromX;
     fromY;
+    fromZ;
     toX;
     toY;
+    toZ;
     fromHarmCoords;
     toHarmCoords;
     thickness = LINE_THICKNESS;
@@ -502,8 +715,8 @@ class Scaffolding {
         this.presence = this.reasonForExisting.presence;
         this.fromHarmCoords = from;
         this.toHarmCoords = to;
-        [this.fromX, this.fromY] = from.toUnscaledCoords();
-        [this.toX, this.toY] = to.toUnscaledCoords();
+        [this.fromX, this.fromY, this.fromZ] = from.toUnscaledCoords();
+        [this.toX, this.toY, this.toZ] = to.toUnscaledCoords();
 
         switch (this.adjacency) {
             case 2:
@@ -541,8 +754,8 @@ class Scaffolding {
         this.presence = this.reasonForExisting.presence;
         this.color.setAlpha(Math.pow(this.presence, 0.8));
         this.thickness = Math.pow(this.presence, 0.9) * (LINE_THICKNESS + 0.2 * HAPPENINGNESS);
-        [this.fromX, this.fromY] = this.fromHarmCoords.toUnscaledCoords();
-        [this.toX, this.toY] = this.toHarmCoords.toUnscaledCoords();
+        [this.fromX, this.fromY, this.fromZ] = this.fromHarmCoords.toUnscaledCoords();
+        [this.toX, this.toY, this.toZ] = this.toHarmCoords.toUnscaledCoords();
     }
 
     /**
@@ -551,22 +764,35 @@ class Scaffolding {
      * @param {p5.Graphics} graphics
      */
     draw(camera, graphics) {
-        let [from, to] = [[this.fromX, this.fromY], [this.toX, this.toY]];
-        let [fromX, fromY] = camera.toScreenCoordinates(camera.project(from));
-        let [toX, toY] = camera.toScreenCoordinates(camera.project(to));
-        let fromWidth = camera.projectScalar(this.thickness, from);
-        let toWidth = camera.projectScalar(this.thickness, to);
-        let [dX, dY] = [toX - fromX, toY - fromY]; // direction vector
-        // use direction vector to leave a space so that adjacent lines don't connect
-        let fromXSpace = fromX + SCAFFOLDING_SPACE_RATIO * dX;
-        let toXSpace = toX - SCAFFOLDING_SPACE_RATIO * dX;
-        let fromYSpace = fromY + SCAFFOLDING_SPACE_RATIO * dY;
-        let toYSpace = toY - SCAFFOLDING_SPACE_RATIO * dY;
-        fromWidth = Math.max(MIN_LINE_THICKNESS_PX, Math.min(MAX_LINE_THICKNESS_PX, fromWidth));
-        toWidth = Math.max(MIN_LINE_THICKNESS_PX, Math.min(MAX_LINE_THICKNESS_PX, toWidth));
-        graphics.fill(this.color);
-        graphics.noStroke();
-        Scaffolding.drawVaryingWidthLine(graphics, fromXSpace, fromYSpace, toXSpace, toYSpace, fromWidth, toWidth);
+        if (!IS_3D) {
+            let [from, to] = [[this.fromX, this.fromY], [this.toX, this.toY]];
+            let [fromX, fromY] = camera.toScreenCoordinates(camera.project(from));
+            let [toX, toY] = camera.toScreenCoordinates(camera.project(to));
+            let fromWidth = camera.projectScalar(this.thickness, from);
+            let toWidth = camera.projectScalar(this.thickness, to);
+            let [dX, dY] = [toX - fromX, toY - fromY]; // direction vector
+            // use direction vector to leave a space so that adjacent lines don't connect
+            let fromXSpace = fromX + SCAFFOLDING_SPACE_RATIO * dX;
+            let toXSpace = toX - SCAFFOLDING_SPACE_RATIO * dX;
+            let fromYSpace = fromY + SCAFFOLDING_SPACE_RATIO * dY;
+            let toYSpace = toY - SCAFFOLDING_SPACE_RATIO * dY;
+            fromWidth = Math.max(MIN_LINE_THICKNESS_PX, Math.min(MAX_LINE_THICKNESS_PX, fromWidth));
+            toWidth = Math.max(MIN_LINE_THICKNESS_PX, Math.min(MAX_LINE_THICKNESS_PX, toWidth));
+            graphics.fill(this.color);
+            graphics.noStroke();
+            Scaffolding.drawVaryingWidthLine(graphics, fromXSpace, fromYSpace, toXSpace, toYSpace, fromWidth, toWidth);
+        } else {
+            graphics.push();
+            let from = createVector(this.fromX, this.fromY, this.fromZ);
+            let to = createVector(this.toX, this.toY, this.toZ);
+            let dV = to.sub(from); // direction vector
+
+            graphics.translate(from.lerp(to, 0.5)); // draw cylinder at midpoint between from and to
+            graphics.applyMatrix(rotateAlign(createVector(0,1,0), dV));
+            graphics.ambientMaterial(this.color);
+            graphics.cylinder(this.thickness * 5, dV.mag() * (1 - 2 * SCAFFOLDING_SPACE_RATIO));
+            graphics.pop();
+        }
     }
 
     static drawVaryingWidthLine(graphics, x1, y1, x2, y2, startWidth, endWidth) {

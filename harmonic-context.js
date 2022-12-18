@@ -51,7 +51,13 @@ class Pitch {
 // (i.e. the 'key center') to update.
 class HarmonicContext {
     #avgHc = new HarmonicCoordinates(0,0,0,0,0);
-    #tonalCenterUnscaledCoords = [0, 0];
+    /**
+     * In 2D proj, the third value is not used.
+     */
+    #tonalCenterUnscaledCoords = [0, 0, 0];
+    /**
+     * Only valid for 2D
+     */
     #dCenter_dRotator = [0, 0];
     /**
      * @type {[Pitch]}
@@ -117,10 +123,17 @@ class HarmonicContext {
         return this.#meanHarmDist;
     }
 
+    /**
+     * a 3D vector representing coords of the tonal center. In 2D projections the third value is not used.
+     * NOTE: tonal center is calculated using `#avcHc` not `#effectiveOrigin`.
+     */
     get tonalCenterUnscaledCoords() {
         return this.#tonalCenterUnscaledCoords;
     }
 
+    /**
+     * Only valid for 2D.
+     */
     get dCenterCoords_dRotator() {
         return this.#dCenter_dRotator;
     }
@@ -151,7 +164,7 @@ class HarmonicContext {
         this.#tonalCenterUnscaledCoords = this.#avgHc.toUnscaledCoords();
         this.#dCenter_dRotator = this.#avgHc.dUnscaledCoords_dRotation;
 
-        // Remove old notes that are forgotten.
+        // Remove notes that are played too long ago/forgotten.
         let now = new Date();
         for (let i = 0; i < this.shortTermMemory.length; i++) {
             let p = this.shortTermMemory[i];
@@ -188,59 +201,155 @@ class HarmonicContext {
         let stmFreqs = this.stmFrequencies;
 
         /**
+         * The preferred note that the ratio is relative to
          * @type {Pitch}
          */
-        let bestFitRelativeNote; // The preferred note that the ratio is relative to
+        let bestFitRelativeNote;
         /**
+         * the preferred perceived relative ratio between the `bestFitRelativeNote` and the new registered note.
          * @type {HarmonicCoordinates}
          */
-        let bestFitRatio; // the preferred perceived ratio between the relative note and the new registered note.
+        let bestFitRatio;
 
-        // let t = new Date();
-
-        // this structure is used to map the wasm result back into
-        // js objects.
-        let candidates_pitches = [];
-
-        for (let pitch of this.shortTermMemory) {
-            let candidateRatios = convertStepsToPossibleCoord(stepsFromA - pitch.stepsFromA);
-            let freqArrays = [];
-            for (let r of candidateRatios) {
-                let candidateFreq = r.toFrequency(pitch.frequency);
-                let freqs = stmFreqs.concat(candidateFreq);
-                freqArrays.push(freqs);
-            }
-            candidates_pitches.push([pitch, candidateRatios, freqArrays])
-        }
-
-        // An array indexed by bestFitRelativeNote
-        // containing an array of ratio candidates containing an array of frequencies to calculate dissonance.
-        let freqMatrix = candidates_pitches.map(x => x[2]);
-
-        let [p_idx, r_idx] = dissonanceMatrix(freqMatrix);
-        bestFitRelativeNote = candidates_pitches[p_idx][0];
-        bestFitRatio = candidates_pitches[p_idx][1][r_idx];
-        // console.log(`using dissonanceMatrix: ${(new Date()) - t} ms`);
-        // console.log(`Choosing`, bestFitRelativeNote, bestFitRatio);
-
-        let newAbsRatio = bestFitRatio.add(bestFitRelativeNote.absoluteRatio);
-        let existingPitch = this.getPitchByHarmCoords(newAbsRatio);
+        /**
+         * The `bestFitRatio` with absolute coordinates relative to origin.
+         * @type {HarmonicCoordinates}
+         */
+        let newAbsRatio;
+        
+        /**
+         * true if the new pitch is an octave of an existing pitch.
+         * @type {boolean}
+         */
         let newPitchIsOctaveOfExistingPitches = this.containsOctavesOfNote(stepsFromA);
 
-        let removeOffender = () => {
-            // note: this wasm function will not consider the last element of the freq array
-            //       to be the offender, since the last element is the most recent element.
-            let idxOfHighestDissonance = findOffender(this.stmFrequencies);
-            this.shortTermMemory.splice(idxOfHighestDissonance, 1);
+        /**
+         * if newAbsRatio is equal to some existing pitch in the short term memory, 
+         * this will be a reference to that pitch.
+         * @type {Pitch}
+         */
+        let existingPitch;
+
+        if (HARMONIC_CONTEXT_METHOD == 'cb') {
+            // let t = new Date();
+
+            // this structure is used to map the wasm result back into
+            // js objects.
+            let candidates_pitches = [];
+
+            for (let pitch of this.shortTermMemory) {
+                let candidateRatios = convertStepsToPossibleCoord(stepsFromA - pitch.stepsFromA);
+                let freqArrays = [];
+                for (let r of candidateRatios) {
+                    let candidateFreq = r.toFrequency(pitch.frequency);
+                    let freqs = stmFreqs.concat(candidateFreq);
+                    freqArrays.push(freqs);
+                }
+                candidates_pitches.push([pitch, candidateRatios, freqArrays])
+            }
+
+            // An array indexed by bestFitRelativeNote
+            // containing an array of ratio candidates containing an array of frequencies to calculate dissonance.
+            let freqMatrix = candidates_pitches.map(x => x[2]);
+
+            let [p_idx, r_idx] = dissonanceMatrix(freqMatrix);
+            bestFitRelativeNote = candidates_pitches[p_idx][0];
+            bestFitRatio = candidates_pitches[p_idx][1][r_idx];
+            // console.log(`using dissonanceMatrix: ${(new Date()) - t} ms`);
+            // console.log(`Choosing`, bestFitRelativeNote, bestFitRatio);
+
+            newAbsRatio = bestFitRatio.add(bestFitRelativeNote.absoluteRatio);
+            existingPitch = this.getPitchByHarmCoords(newAbsRatio);
+
+            let removeOffender = () => {
+                // note: this wasm function will not consider the last element of the freq array
+                //       to be the offender, since the last element is the most recent element.
+                let idxOfHighestDissonance = findOffender(this.stmFrequencies);
+                this.shortTermMemory.splice(idxOfHighestDissonance, 1);
+            }
+
+            if (!existingPitch) {
+                this.shortTermMemory.push(new Pitch(stepsFromA, bestFitRelativeNote, bestFitRatio));
+            } else {
+                // If this note is existing already, refresh its countdown timer.
+                existingPitch.noteOnTime = new Date();
+            }
+
+            // 4. If max short term memory or dissonance exceeded, remove the most obvious choice
+            //    repeatedly until constraints are met.
+
+            // t = new Date();
+
+            if (this.shortTermMemory.length > MAX_SHORT_TERM_MEMORY)
+                removeOffender();
+
+            while (true) {
+                if(calculateDissonance(this.stmFrequencies) > this.effectiveMaxDiss)
+                    removeOffender();
+                else
+                    break;
+            }
+        } else if (HARMONIC_CONTEXT_METHOD == 'l2' || HARMONIC_CONTEXT_METHOD == 'l2eo') {
+            /**
+             * @type {HarmonicCoordinates[]}
+             */
+            let candidatesAbs = []; // contains unique absolute ratios
+
+            for (let pitch of this.shortTermMemory) {
+                // relative candidate ratios to note in shortTermMem
+                let candidateRel = convertStepsToPossibleCoord(stepsFromA - pitch.stepsFromA);
+                candidatesAbs = candidatesAbs.concat(
+                    candidateRel.map(x => x.add(pitch.absoluteRatio))
+                    .filter(x => !candidatesAbs.includes(x)));
+            }
+
+            let minDist = Infinity;
+            newAbsRatio = null;
+            for(let candidate of candidatesAbs) {
+                let dist;
+                if (HARMONIC_CONTEXT_METHOD == 'l2eo')
+                    dist = this.effectiveOrigin.harmonicDistance(candidate);
+                else if (HARMONIC_CONTEXT_METHOD == 'l2')
+                    dist = this.#avgHc.harmonicDistance(candidate);
+                
+                if (dist < minDist) {
+                    minDist = dist;
+                    newAbsRatio = candidate;
+                }
+            }
+            existingPitch = this.getPitchByHarmCoords(newAbsRatio);
+
+            if (!existingPitch) {
+                // prepare to add new pitch by assigning bestFitRelativeNote and bestFitRatio
+                minDist = Infinity;
+                for (let pitch of this.shortTermMemory) {
+                    let dist = pitch.absoluteRatio.harmonicDistance(newAbsRatio);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        bestFitRelativeNote = pitch;
+                        bestFitRatio = newAbsRatio.subtract(pitch.absoluteRatio);
+                    }
+                }
+
+                // so let's do it
+                this.shortTermMemory.push(new Pitch(stepsFromA, bestFitRelativeNote, bestFitRatio));
+            } else {
+                // If this note is existing already, refresh its countdown timer.
+                existingPitch.noteOnTime = new Date();
+            }
+
+            // If max STM notes exceeded, remove the oldest note.
+            if (this.shortTermMemory.length > MAX_SHORT_TERM_MEMORY) {
+                let oldest = this.shortTermMemory[0];
+                for (let pitch of this.shortTermMemory) {
+                    if (pitch.noteOnTime < oldest.noteOnTime)
+                        oldest = pitch;
+                }
+                this.shortTermMemory.splice(this.shortTermMemory.indexOf(oldest), 1);
+            }
         }
 
-        if (!existingPitch) {
-            this.shortTermMemory.push(new Pitch(stepsFromA, bestFitRelativeNote, bestFitRatio));
-        } else {
-           // If this note is existing already, refresh its countdown timer.
-           existingPitch.noteOnTime = new Date();
-        }
-
+        
         // 3. If the new pitch clashes with any pitch by 1 edostep, remove the old pitch from STM.
 
         for (let i = 0; i < this.shortTermMemory.length; i++) {
@@ -250,22 +359,7 @@ class HarmonicContext {
             }
         }
 
-        // 4. If max short term memory or dissonance exceeded, remove the most obvious choice
-        //    repeatedly until constraints are met.
-
-        // t = new Date();
-
-        if (this.shortTermMemory.length > MAX_SHORT_TERM_MEMORY)
-            removeOffender();
-
-        while (true) {
-            if(calculateDissonance(this.stmFrequencies) > this.effectiveMaxDiss)
-                removeOffender();
-            else
-                break;
-        }
-
-        // 5. Remove older notes which are too far out harmonically from this new note.
+        // Remove older notes which are too far out harmonically from this new note.
 
         let highestHarmonicDistance = 0;
         let sumHarmonicDistance = 0;
@@ -424,7 +518,7 @@ class HarmonicContext {
     reset() {
         this.shortTermMemory = [];
         this.#avgHc = new HarmonicCoordinates(0,0,0,0,0);
-        this.#tonalCenterUnscaledCoords = [0, 0];
+        this.#tonalCenterUnscaledCoords = [0, 0, 0];
         this.#dissonance = 0;
         // this.#centralFifth = 0; don't reset fifths since it's probable the key will stay the same.
         this.#effectiveOrigin = new HarmonicCoordinates(0,0,0,0,0);
