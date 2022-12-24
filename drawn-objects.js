@@ -469,7 +469,14 @@ export class BallsManager {
                 // Reuse a dead ball whenever possible/necessary
 
                 /** @type {Ball} */
-                let oldBall = this.#listOfDeadBalls.pop() || this.balls[keys[Math.floor(Math.random() * keys.length)]];
+                let oldBall = this.#listOfDeadBalls.pop();
+                if (!oldBall) {
+                    // if there aren't any dead balls, but MAX_BALLS are exceeded,
+                    // delete a random ball to re-use.
+                    let randomKey = keys[Math.floor(Math.random() * keys.length)];
+                    this.deleteBall(randomKey);
+                    oldBall = this.#listOfDeadBalls.pop();
+                }
                 oldBall.realive(harmCoords, stepsFromA, presence);
 
                 // if there was already an existing ball object in the new location for some reason,
