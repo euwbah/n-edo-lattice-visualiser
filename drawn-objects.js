@@ -1,20 +1,44 @@
+import { Text } from "troika-three-text";
+import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, DIST_CHANGE_SPEED, DIST_STD_DEV_RATIO, EDO, FIFTHS_COLOR, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR } from "./configs.js";
+import { HarmonicContext } from "./harmonic-context.js";
+import { EDOSTEPS_TO_FIFTHS_MAP, HarmonicCoordinates } from "./just-intonation.js";
+import * as THREE from "three";
+
 /**
- * 2D Algorithm:
- * Harmonic Coordinates -> Unscaled coordinates -> Projection -> Screen coordinates
+ * Adds jitter to a vector based on {@link HAPPENINGNESS}
  * 
- * 3D Algorithm:
- * Harmonic Coordinates -> Unscaled coordinates -> P5's 3D projection
+ * @param {THREE.Vector3} vec Input vector.
+ * @returns {THREE.Vector3} A new vector with jitter applied.
+ */
+function addJitter(vec) {
+    return vec.clone()
+        .add(new THREE.Vector3().random().multiplyScalar(Math.pow(HAPPENINGNESS, 2.3) * JITTER_HAPPENINGNESS));
+}
+
+/**
+ * Wrapper around THREE's camera.
  * 
  * In 3D, camera always points at centerX/Y/Z and is located in terms of
  * spherical coordinates (radius, theta, phi) about the center point.
  */
-class Camera {
-    targetCenterX = 0;
-    targetCenterY = 0;
-    targetCenterZ = 0;
-    centerX = 0;
-    centerY = 0;
-    centerZ = 0; // +ve z is outward from the screen
+export class Camera {
+    /**
+     * Three JS camera instance
+     * 
+     * @type {THREE.Camera}
+     */
+    camera;
+
+    /** 
+     * center represents 3D coords of tonal center
+     * 
+     * @type {THREE.Vector3}
+     */
+    targetCenter = new THREE.Vector3();
+    /**
+     * @type {THREE.Vector3}
+     */
+    center = new THREE.Vector3();
 
     /**
      * @type {number}
@@ -31,6 +55,13 @@ class Camera {
      * z = radius * sin(phi) * sin(theta)
      */
     theta = 1/2*Math.PI; // start 'in front' of the center point
+
+    /**
+     * Stores current yaw rotation speed
+     * 
+     * @type {number}
+     */
+    dTheta = 0;
 
     /**
      * @type {number}
@@ -51,227 +82,264 @@ class Camera {
      */
     #harmonicContext;
 
-    // These zoom settings are for 2D
-    zoom = MAX_ZOOM;
-    zoomTarget = MAX_ZOOM;
-    #effectiveExponent = EXPONENT;
-
     // These zoom settings are for 3D
     dist = MIN_CAM_DIST;
     distTarget = MIN_CAM_DIST;
 
+    /**
+     * @type {THREE.PointLight}
+     */
+    pointLight;
+
     constructor(harmonicContext) {
         this.#harmonicContext = harmonicContext;
-    }
-
-    get effectiveExponent() {
-        return this.#effectiveExponent;
-    }
-
-    tick(stdDeviation, dRotator, graphics) {
-        [this.targetCenterX, this.targetCenterY, this.targetCenterZ] = this.#harmonicContext.tonalCenterUnscaledCoords;
-        let dt = deltaTime > 1000 ? 1000 : deltaTime;
-        this.centerX += (this.targetCenterX - this.centerX) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-        this.centerY += (this.targetCenterY - this.centerY) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-        this.centerZ += (this.targetCenterZ - this.centerZ) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-
-        if (!IS_3D) {
-            // counter rotation:
-            let [dX_dRot, dY_dRot] = this.#harmonicContext.dCenterCoords_dRotator;
-            // move the camera an amount equal to the amount of translation caused by the
-            // rotation of the vectors.
-            // THIS WORKS. TRUST ME. IF YOU REMOVE THESE TWO LINES NOTHING WILL SHOW UP ON THE
-            // SCREEN AFTER SPAMMING TONS OF NOTES.
-            let dXDueToRot = dX_dRot * dRotator;
-            let dYDueToRot = dY_dRot * dRotator;
-
-            let rotLagX = - dXDueToRot * CAM_ROTATIONAL_LAG_COEF;
-            let rotLagY = - dYDueToRot * CAM_ROTATIONAL_LAG_COEF;
-
-            // Project the rotational lag as a vector from the current camera's position
-            // and make sure it doesn't exceed the maximum lag in pixels.
-            let [projRotLagX, projRotLagY] = this.project([rotLagX + this.centerX, rotLagY + this.centerY]);
-            if (Math.abs(projRotLagX) > CAM_MAX_ROTATIONAL_LAG_X_PX)
-                projRotLagX = CAM_MAX_ROTATIONAL_LAG_X_PX * Math.sign(projRotLagX);
-            if (Math.abs(projRotLagY) > CAM_MAX_ROTATIONAL_LAG_Y_PX)
-                projRotLagY = CAM_MAX_ROTATIONAL_LAG_Y_PX * Math.sign(projRotLagY);
-
-            [rotLagX, rotLagY] = this.inverseProject([projRotLagX, projRotLagY]);
-            rotLagX -= this.centerX; // Undo the offset that was included for calculation purposes
-            rotLagY -= this.centerY;
-
-            this.centerX += dXDueToRot + rotLagX;
-            this.centerY += dYDueToRot + rotLagY;
-
-            let targetExp = EXPONENT + HAPPENINGNESS * EXPONENT_GROWTH;
-            this.#effectiveExponent += (targetExp - this.#effectiveExponent) * dt / 800;
-
-            let scaledDeviation = (stdDeviation - MAX_ZOOM_STD_DEV) / (MIN_ZOOM_STD_DEV - MAX_ZOOM_STD_DEV);
-            scaledDeviation = Math.max(0, Math.min(1, scaledDeviation));
-            this.zoomTarget = (MIN_ZOOM + (MAX_ZOOM - MIN_ZOOM) * (1 - scaledDeviation)) * (1 - HAPPENINGNESS * ZOOM_SHRINK);
-            this.zoomTarget = Math.max(1, this.zoomTarget); // 1 is the absolute minimum zoom
-            this.zoom += (this.zoomTarget - this.zoom) * dt / 1000 * ZOOM_CHANGE_SPEED;
-        } else {
-            this.distTarget = MIN_CAM_DIST + stdDeviation * DIST_STD_DEV_RATIO + HAPPENINGNESS * 150;
-            this.distTarget = Math.max(MIN_CAM_DIST, Math.min(MAX_CAM_DIST, this.distTarget));
-            this.dist += (this.distTarget - this.dist) * dt / 1000 * DIST_CHANGE_SPEED;
-
-            this.theta += dt / 1000 * HAPPENINGNESS * 2;
-            if (this.theta > 2 * Math.PI) this.theta -= 2 * Math.PI;
-
-            this.phi = 0.97 * this.phi + 0.03 * Math.PI * (0.65 - Math.pow(HAPPENINGNESS, 0.7) * 0.25);
-
-            let camX = this.centerX + this.dist * Math.sin(this.phi) * Math.cos(this.theta);
-            let camY = this.centerY + this.dist * Math.cos(this.phi);
-            let camZ = this.centerZ + this.dist * Math.sin(this.phi) * Math.sin(this.theta);
-            graphics.lightFalloff(0.5, 0.1, 0.1)
-            graphics.pointLight(200, 200, 200, camX, camY, camZ);
-            graphics.camera(
-                camX, camY, camZ,
-                this.centerX, this.centerY, this.centerZ,
-                0, 1, 0 // up vector
-            );
-        }
+        this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+        this.pointLight = new THREE.PointLight(0xffffff, 0, 0, 1.4);
+        scene.add(this.pointLight);
     }
 
     /**
-     * Project unscaled coordinates into cartesian coordinates from origin.
+     * To be called when the window is resized
+     */
+    updateAspectRatio() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+    }
+
+    /**
+     * Update the camera's position.
      * 
-     * SHOULD NOT BE CALLED IF IN 3D MODE.
-     * @param {[number, number]} unscaledCoordinates
+     * @param {number} stdDeviation The stdDeviation of the {@link BallsManager}
      */
-    project(unscaledCoordinates) {
-        let [x, y] = unscaledCoordinates;
-        x -= this.centerX;
-        y -= this.centerY;
+    tick(stdDeviation) {
+        [this.targetCenter.x, this.targetCenter.y, this.targetCenter.z] = this.#harmonicContext.tonalCenterUnscaledCoords;
+        let dt = deltaTime > 1000 ? 1000 : deltaTime;
+        this.center.x += (this.targetCenter.x - this.center.x) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+        this.center.y += (this.targetCenter.y - this.center.y) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+        this.center.z += (this.targetCenter.z - this.center.z) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+        
+        this.distTarget = MIN_CAM_DIST + stdDeviation * DIST_STD_DEV_RATIO + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS;
+        this.distTarget = Math.max(MIN_CAM_DIST, Math.min(MAX_CAM_DIST, this.distTarget));
+        this.dist += (this.distTarget - this.dist) * dt / 1000 * DIST_CHANGE_SPEED;
 
-        if (PROJECTION_TYPE === 'exp2d') {
-            x = Math.pow(Math.abs(x), this.effectiveExponent) * Math.sign(x);
-            y = Math.pow(Math.abs(y), this.effectiveExponent) * Math.sign(y);
-        } else if (PROJECTION_TYPE === 'exppolar') {
-            let r = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
-            let theta = Math.atan2(y, x);
-            r = Math.pow(r, this.effectiveExponent); // r is always positive
-            x = r * Math.cos(theta);
-            y = r * Math.sin(theta);
-        }
+        // Calculate where the camera actually is positioned.
+        let camX = this.center.x + this.dist * Math.sin(this.phi) * Math.cos(this.theta);
+        let camY = this.center.y + this.dist * Math.cos(this.phi);
+        let camZ = this.center.z + this.dist * Math.sin(this.phi) * Math.sin(this.theta);
+        let camPosVec = new THREE.Vector3(camX, camY, camZ);
+        this.camera.position.copy(camPosVec);
+        this.camera.lookAt(this.center);
 
-        x *= this.zoom;
-        y *= this.zoom;
+        // Calculate how to rotate depending on whether the target is left or right of
+        // the current center point. (If left, rotate CCW, if right, rotate CW)
+        let camToCenter = new THREE.Vector3().subVectors(this.center, camPosVec);
+        let targetToCenter = new THREE.Vector3().subVectors(this.center, this.targetCenter);
+        let cross = camToCenter.cross(targetToCenter);
+        let crossDivNormalized = cross.dot(cross.clone().normalize()) * cross.y >= 0 ? 1 : -1;
 
-        return [x, y];
-    }
+        // Rotation speed in radians per second
+        let targetRotSpd = HAPPENINGNESS * crossDivNormalized * CAM_ROT_SPEED;
+        targetRotSpd = Math.min(MAX_CAM_ROT_SPEED, Math.abs(targetRotSpd)) * Math.sign(targetRotSpd);
 
-    /**
-     * Inverse of `project()` such that inverseProject(project([x, y])) returns [x, y]
-     * @param {[number, number]} coords
-     */
-    inverseProject(coords) {
-        let [x, y] = coords;
-        x /= this.zoom;
-        y /= this.zoom;
+        this.dTheta = CAM_ROT_ACCEL * targetRotSpd + (1 - CAM_ROT_ACCEL) * this.dTheta;
 
-        if (PROJECTION_TYPE === 'exp2d') {
-            x = Math.pow(Math.abs(x), 1 / this.effectiveExponent) * Math.sign(x);
-            y = Math.pow(Math.abs(y), 1 / this.effectiveExponent) * Math.sign(y);
-        } else if (PROJECTION_TYPE === 'exppolar') {
-            let r = Math.sqrt(Math.pow(x, 2) + Math.pow(y, 2));
-            let theta = Math.atan2(y, x);
-            r = Math.pow(r, 1 / this.effectiveExponent); // r is always positive
-            x = r * Math.cos(theta);
-            y = r * Math.sin(theta);
-        }
+        this.theta += dt / 1000 * this.dTheta;
+        if (this.theta > 2 * Math.PI) this.theta -= 2 * Math.PI;
 
-        x += this.centerX;
-        y += this.centerY;
-        return [x, y];
-    }
+        this.phi = 0.97 * this.phi + 0.03 * Math.PI * (0.65 - Math.pow(HAPPENINGNESS, 0.7) * 0.25);
 
-    projectScalar(scalar, unscaledCoordinates) {
-        // method: multiply the scalar by the average of d(project(x))/d(x) and d(project(y))/d(y)
-        // d(project(x))/dx = ???
-        // defined for all x except x = 0
-        // if x = 0, use dx = zoom.
-        let [x, y] = unscaledCoordinates;
-        x = (x - this.centerX);
-        y = (y - this.centerY);
-        let dx = this.zoom, dy = this.zoom;
-        if (PROJECTION_TYPE === 'exp2d') {
-            // NOTE: if effectiveExponent < 1, dx -> infinity as x -> 0
-            //       if effectiveExponent = 1, dx = 1 always.
-            //       if effectiveExponent > 1, dx -> 0 as x -> 0.
-            //       NOTE: never let effectiveExponent > 1.
-            if (x !== 0) {
-                /*
-                d/dx projx(x) = zoom^exp * exp * x ^ (exp - 1)
-                 */
-                dx = Math.pow(this.zoom, this.effectiveExponent) * this.effectiveExponent * Math.pow(Math.abs(x), this.effectiveExponent - 1);
-            }
-            if (y !== 0) {
-                dy = Math.pow(this.zoom, this.effectiveExponent) * this.effectiveExponent * Math.pow(Math.abs(y), this.effectiveExponent - 1);
-            }
-
-        } else if (PROJECTION_TYPE === 'exppolar') {
-            let r1 = Math.pow(x, 2) + Math.pow(y, 2);
-            let theta = Math.atan2(y, x);
-            // NOTE: never let effectiveExponent > 2,
-            if (r1 !== 0) {
-                let dr2_dx = 2*Math.abs(x) * this.effectiveExponent/2 * Math.pow(r1, this.effectiveExponent/2 - 1);
-                let dr2_dy = 2*Math.abs(y) * this.effectiveExponent/2 * Math.pow(r1, this.effectiveExponent/2 - 1);
-                dx = Math.abs(Math.cos(theta)) * this.zoom * dr2_dx;
-                dy = Math.abs(Math.sin(theta)) * this.zoom * dr2_dy;
-            }
-        }
-
-        // Scalar zoom scaling is capped at zoom level.
-        if (dx > this.zoom)
-            dx = this.zoom;
-        if (dy > this.zoom)
-            dy = this.zoom;
-
-        let dr = Math.min(this.zoom, Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2)));
-
-        return scalar * dr;
-    }
-
-    toScreenCoordinates(cartesian) {
-        // no need for windowWidth/height offset since we're using WEBGL renderer for global GRAPHICS.
-        let jitter = Math.pow(Math.max(0, HAPPENINGNESS - 0.50) / (1 - 0.50), 1.7) * 10;
-        return [cartesian[0] /*+ windowWidth/2*/ + (Math.random() - 0.5) * jitter,
-                /*windowHeight/2*/ - cartesian[1] + (Math.random() - 0.5) * jitter];
+        this.pointLight.position.set(camX, camY + 50, camZ);
+        this.pointLight.intensity = 30 + 90 * (HAPPENINGNESS);
     }
 }
 
-class Ball {
+export class Ball {
     /**
+     * Absolute harmonic coordinates
+     * 
      * @type {HarmonicCoordinates}
      */
     harmCoords;
+    /**
+     * Harmonic coordinates relative to the effective origin.
+     */
     relativeHarmCoords;
-    presence; // Number from 0-1
+    #presence; // Number from 0-1
     stepsFromA;
-    x;
-    y;
-    z;
+    /**
+     * Position of the center of the ball
+     * 
+     * @type {THREE.Vector3}
+     */
+    pos = new THREE.Vector3();
     hue;
     saturation;
+    /**
+     * @type {THREE.Color}
+     */
     ballColor;
-    sizeUnscaled;
+    size;
     isChordTone = true;
     isDebug = false; // set this manuallyg to true if the ball is debug and has no relativeHarmCoords.
 
-    constructor(harmCoords, stepsFromA, presence) {
-        // Note: this is in Hue Saturation Brightness format
+    /**
+     * The sphere geometry
+     * 
+     * @type {THREE.SphereGeometry}
+     */
+    #geometry;
+
+    /**
+     * The material for the sphere
+     * 
+     * @type {THREE.MeshStandardMaterial}
+     */
+    #material;
+
+    /**
+     * The mesh representing the ball object
+     * 
+     * @type {THREE.Mesh}
+     */
+    #sphereMesh;
+
+    /**
+     * The troika text object
+     * 
+     * @type {Text}
+     */
+    #textDisplay;
+
+    /**
+     * Text object for the fraction bar
+     * 
+     * @type {Text}
+     */
+    #fractionBar;
+
+    /**
+     * Common setup between constructor and realive functions.
+     * 
+     * @param {HarmonicCoordinates} harmCoords 
+     * @param {number} stepsFromA 
+     * @param {number} presence 
+     * @param {boolean} isDebug 
+     */
+    setup(harmCoords, stepsFromA, presence, isDebug) {
+        this.isDebug = isDebug;
         this.harmCoords = harmCoords;
-        this.presence = presence;
+        this.#presence = presence;
         this.stepsFromA = stepsFromA;
-        [this.x, this.y, this.z] = this.harmCoords.toUnscaledCoords();
+        [this.pos.x, this.pos.y, this.pos.z] = this.harmCoords.toUnscaledCoords();
         let edosteps = mod(stepsFromA, EDO);
         let octaves = Math.floor(stepsFromA / EDO) + 4;
         this.hue = MIN_FIFTH_HUE + (MAX_FIFTH_HUE - MIN_FIFTH_HUE) * EDOSTEPS_TO_FIFTHS_MAP[edosteps] / EDO;
-        this.saturation = 95 - 25 * (octaves - 2) / 5 // Let saturation start to fall at octave 2
-        this.ballColor = color(this.hue, this.saturation, 100 * Math.pow(presence, 0.5), 0.9);
-        this.sizeUnscaled = Math.pow(presence, 0.5) * BALL_SIZE;
+        this.saturation = .95 - .25 * (octaves - 2) / 5 // Let saturation start to fall at octave 2
+        this.size = Math.pow(presence, 0.5);
+    }
+
+    constructor(harmCoords, stepsFromA, presence, isDebug = false) {
+        this.setup(harmCoords, stepsFromA, presence, isDebug);
+        this.ballColor = new THREE.Color();
+        this.ballColor.setHSL(this.hue, this.saturation, this.lightness);
+        
+        this.#geometry = new THREE.SphereGeometry(BALL_SIZE, 24, 24);
+        this.#material = new THREE.MeshStandardMaterial({
+            color: this.ballColor,
+            metalness: 0,
+            roughness: 0.3,
+            opacity: this.isDebug ? 0.4 : this.opacity,
+            transparent: true
+        });
+        this.#sphereMesh = new THREE.Mesh(this.#geometry, this.#material);
+        this.updateDrawing();
+
+        scene.add(this.#sphereMesh);
+
+        if (!this.isDebug) {   
+            if (TEXT_TYPE !== 'none') {
+                this.#textDisplay = new Text();
+                this.#textDisplay.position.set(0, TEXT_TYPE === 'relfraction' ? -20 : -15, 0);
+                this.#textDisplay.fontSize = this.size * TEXT_SIZE;
+                this.#textDisplay.font = "./FiraSansExtralight-AyaD.ttf";
+                this.#textDisplay.textAlign = 'center';
+                this.#textDisplay.anchorX = 'center';
+                this.#textDisplay.anchorY = 'middle';
+                this.#sphereMesh.add(this.#textDisplay);
+            }
+            
+            if (TEXT_TYPE === 'relfraction') {
+                this.#fractionBar = new Text();
+                this.#fractionBar.text = '_';
+                this.#fractionBar.position.set(0, -21, 0);
+                this.#fractionBar.fontSize = this.size * TEXT_SIZE;
+                this.#fractionBar.font = "./FiraSansExtralight-AyaD.ttf";
+                this.#fractionBar.textAlign = 'center';
+                this.#fractionBar.anchorX = 'center';
+                this.#fractionBar.anchorY = 'bottom';
+                this.#sphereMesh.add(this.#fractionBar);
+            }
+        } else {
+            this.#sphereMesh.renderOrder = -100;
+        }
+    }
+
+    /**
+     * Reactivate a dead ball and put in into the scene.
+     * 
+     * @param {HarmonicCoordinates} harmCoords 
+     * @param {number} stepsFromA 
+     * @param {number} presence
+     * @returns {Ball} this instance
+     */
+    realive(harmCoords, stepsFromA, presence) {
+        this.setup(harmCoords, stepsFromA, presence, false);
+        this.ballColor.setHSL(this.hue, this.saturation, .36 + .29 * Math.pow(presence, 0.5));
+
+        this.#material.opacity = this.isDebug ? 0.3 : this.opacity;
+        this.updateDrawing();
+
+        window.scene.add(this.#sphereMesh);
+        return this;
+    }
+
+    get isDead() {
+        return this.presence <= 0;
+    }
+
+    get presence() {
+        return this.#presence;
+    }
+
+    get lightness() {
+        return .36 + .2 * Math.pow(this.presence, 0.5);
+    }
+
+    get opacity() {
+        return 0.3 + 0.5 * Math.pow(this.presence, 0.45);
+    }
+
+    /**
+     * Call this whenever ball is to be set inactive.
+     * 
+     * Removes ball from scene and stops it from updating.
+     */
+    kill() {
+        this.#presence = 0;
+        window.scene.remove(this.#sphereMesh);
+    }
+
+    /**
+     * Call this when a ball that is already in the scene/active is restruck again.
+     */
+    revitalize(presence) {
+        this.#presence = presence;
+    }
+
+    updateDrawing() {
+        this.#sphereMesh.scale.set(this.size, this.size, this.size);
+        this.#sphereMesh.position.copy(addJitter(this.pos));
+        this.#material.color.set(this.ballColor);
     }
 
     /**
@@ -280,111 +348,104 @@ class Ball {
      * @param {HarmonicContext} harmonicContext
      */
     tick(keyState, harmonicContext) {
+        if (this.isDead) return;
+
         this.isChordTone = harmonicContext.containsNote(this.stepsFromA);
         if (this.stepsFromA in keyState) {
             if (this.presence > BALL_SUSTAIN_SCALE_FACTOR)
-                this.presence = this.presence * (1 - (2 - HAPPENINGNESS) * deltaTime / 1000);
+                this.#presence = this.presence * (1 - (2 - HAPPENINGNESS) * deltaTime / 1000);
             else if (this.presence < BALL_SUSTAIN_SCALE_FACTOR)
-                this.presence = BALL_SUSTAIN_SCALE_FACTOR;
+                this.#presence = BALL_SUSTAIN_SCALE_FACTOR;
         } else {
-            this.presence = this.presence * (1 - 2 * deltaTime / 1000) - 0.01 * deltaTime / 1000;
+            this.#presence = this.presence * (1 - 2 * deltaTime / 1000) - 0.01 * deltaTime / 1000;
+        }
+
+        if (this.isDead) {
+            this.kill();
+            return;
         }
 
         let nonChordToneMult = this.isChordTone ? 1 : NON_CHORD_TONE_SAT_EFFECT;
 
-        this.ballColor = color(
+        this.ballColor.setHSL(
             this.hue, 
             this.saturation * nonChordToneMult, 
-            this.presence * 40 + 40, 
-            0.7 * Math.pow(this.presence, 0.5)
+            this.lightness,
         );
-        this.sizeUnscaled = Math.pow(this.presence, 0.5) * BALL_SIZE;
 
-        [this.x, this.y, this.z] = this.harmCoords.toUnscaledCoords();
+        this.#material.opacity = this.opacity;
+        this.#material.roughness = 0.3 + 0.3 * HAPPENINGNESS;
+        this.size = Math.pow(this.presence, 0.5);
+        [this.pos.x, this.pos.y, this.pos.z] = this.harmCoords.toUnscaledCoords();
+
+        this.updateDrawing();
 
         this.relativeHarmCoords = harmonicContext.relativeToEffectiveOrigin(this.harmCoords);
-    }
 
-    /**
-     *
-     * @param {Camera} camera
-     * @param {p5.Graphics} graphics
-     */
-    draw(camera, graphics) {
-        if (!IS_3D) {
-            let unscaledCoords = [this.x, this.y];
-            let [x, y] = camera.toScreenCoordinates(camera.project(unscaledCoords));
-            let size = camera.projectScalar(this.sizeUnscaled * (this.isChordTone ? 1 : NON_CHORD_TONE_SIZE_EFFECT), unscaledCoords);
-            graphics.noStroke();
-            graphics.fill(this.ballColor);
-            graphics.circle(x, y, size);
-            
-            if (!this.isDebug) {
-                graphics.fill(hue(this.ballColor), 35, 100, 1);
-                graphics.textAlign(CENTER, CENTER);
-                let tSize = Math.max(MIN_TEXT_SIZE_PX, Math.min(MAX_TEXT_SIZE_PX, size * 0.6));
-                graphics.textSize(tSize);
-                if (TEXT_TYPE === 'relmonzo') {
-                    graphics.text(this.relativeHarmCoords.toMonzoString(), x, y + size);
-                } else if (TEXT_TYPE === 'relfraction') {
-                    let [num, den] = this.relativeHarmCoords.toRatio();
-                    graphics.text(num, x, y + size - 5);
-                    graphics.text(`__`, x, y + size - 5 + tSize * 0.1);
-                    graphics.text(den, x, y + size - 5 + tSize);
-                }
+        let textColor = this.ballColor.clone().offsetHSL(0, 0, 0.2);
+
+        if (this.#fractionBar) {
+            this.#fractionBar.color = textColor;
+            this.#fractionBar.lookAt(window.cam.camera.position);
+            this.#fractionBar.strokeOpacity = this.opacity;
+            this.#fractionBar.sync();
+        }
+
+        if (this.#textDisplay) {
+            if (TEXT_TYPE === 'relfraction') {
+                let [num, den] = this.relativeHarmCoords.toRatio();
+                this.#textDisplay.text = `${num}\n${den}`;
+            } else if (TEXT_TYPE === 'relmonzo') {
+                this.#textDisplay.text = this.relativeHarmCoords.toMonzoString();
             }
-        } else {
-            graphics.push();
-            let size = this.sizeUnscaled * 10;
-            graphics.translate(this.x, this.y, this.z);
-            graphics.specularMaterial(this.ballColor);
-            graphics.shininess(80);
-            graphics.sphere(this.isDebug ? size * 0.5 : size);
-            
-            if (!this.isDebug) {
-                graphics.fill(hue(this.ballColor), 35, 100, 1);
-                graphics.textAlign(CENTER, CENTER);
-                let tSize = 0;
-                graphics.textSize(tSize);
-                graphics.translate(0, -10, 0);
-                if (TEXT_TYPE === 'relmonzo') {
-                    graphics.text(this.relativeHarmCoords.toMonzoString(), 0, -5);
-                } else if (TEXT_TYPE === 'relfraction') {
-                    let [num, den] = this.relativeHarmCoords.toRatio();
-                    graphics.text(num, 0, -5);
-                    graphics.text(`__`, 0, -5 + tSize * 0.1);
-                    graphics.text(den, 0, -5 + tSize);
-                }
-            }
-            graphics.pop();
+            this.#textDisplay.color = textColor;
+            this.#textDisplay.lookAt(window.cam.camera.position);
+            this.#textDisplay.strokeOpacity = this.opacity;
+            this.#textDisplay.sync();
         }
     }
 }
 
-class BallsManager {
+export class BallsManager {
     /**
+     * Represents active balls indexed by their harmonic coordinates
+     * 
      * @type {Object.<HarmonicCoordinates, Ball>}
      */
     balls = {};
+
+    /**
+     * Contains list of inactive ball objects
+     * 
+     * @type {[Ball]}
+     */
+    #listOfDeadBalls = [];
+
     /**
      * The mean of the standard deviation of the x, y (and z, if 3D) coordinates of the balls.
      */
     #stddev = 0;
+
+    /**
+     * Ball for showing where the origin is.
+     * 
+     * @type {Ball}
+     */
     originBall;
+
+    /**
+     * Ball for showing where the harmonic center is.
+     * 
+     * @type {Ball}
+     */
     harmonicCenterBall;
 
     constructor() {
+        this.originBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, ORIGIN_SIZE, true);
+        this.originBall.ballColor = new THREE.Color(0xEEEEEE);
+        this.originBall.updateDrawing();
 
-    }
-
-    setup() {
-        this.originBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.1);
-        this.originBall.ballColor = color(0, 10, 80, 0.3);
-        this.originBall.isDebug = true;
-
-        this.harmonicCenterBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, 0.05);
-        this.harmonicCenterBall.ballColor = color(0, 70, 100, 0.5);
-        this.harmonicCenterBall.isDebug = true;
+        this.harmonicCenterBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, HARMONIC_CENTROID_SIZE, true);
     }
 
     /**
@@ -392,62 +453,92 @@ class BallsManager {
      * @param {HarmonicCoordinates} harmCoords
      * @param {number} stepsFromA
      * @param {number} velocity
-     * @returns {Ball} The ball that was created
+     * @returns {Ball} The ball that was created/reused
      */
     noteOn(harmCoords, stepsFromA, velocity) {
         console.log('ball note on: ', harmCoords.harmonicDistanceFromOrigin(), harmCoords);
-        let presence = Math.pow(velocity / 127, 0.5) * 0.5 + 0.5;
+        let presence = Math.pow(velocity / 127, 1) * 0.9 + 0.1;
+        /** @type {Ball} */
         let existingBall = this.balls[harmCoords];
         if (existingBall !== undefined) {
-            existingBall.presence = Math.pow(velocity / 127, 0.5) * 0.5 + 0.5;
+            existingBall.revitalize(presence);
             return existingBall;
         } else {
+            let keys = Object.keys(this.balls);
+            if (this.#listOfDeadBalls.length > 0 || keys.length >= MAX_BALLS) {
+                // Reuse a dead ball whenever possible/necessary
+
+                /** @type {Ball} */
+                let oldBall = this.#listOfDeadBalls.pop() || this.balls[keys[Math.floor(Math.random() * keys.length)]];
+                oldBall.realive(harmCoords, stepsFromA, presence);
+
+                // if there was already an existing ball object in the new location for some reason,
+                // put it into the reserve to prevent memory leaks.
+                this.deleteBall(harmCoords);
+
+                // put the revived old ball in the active list.
+                this.balls[harmCoords] = oldBall;
+                return oldBall;
+            }
+
+            // otherwise, just make a new ball.
             let ball = new Ball(harmCoords, stepsFromA, presence);
+            // if there was already a ball object in this new location for some reason,
+            // delete it.
+            this.deleteBall(harmCoords);
             this.balls[harmCoords] = ball;
             return ball;
         }
     }
 
+    /**
+     * Deletes an active ball at given harmonic coordinate.
+     * 
+     * Doesn't actually delete it, just moves the ball object into the reserve
+     * 
+     * @param {HarmonicCoordinates} harmCoords 
+     */
+    deleteBall(harmCoords) {
+        if (this.balls[harmCoords]) {
+            this.balls[harmCoords].kill();
+            this.#listOfDeadBalls.push(this.balls[harmCoords]);
+            delete this.balls[harmCoords];
+        }
+    }
+
+    /**
+     * 
+     * @param {Object.<number, KeyState>} keyState
+     * @param {HarmonicContext} harmonicContext 
+     */
     tick(keyState, harmonicContext) {
         let xValues = [], yValues = [], zValues = [];
-        this.balls = Object.fromEntries(Object.entries(this.balls).filter(
-            ([_,ball]) => {
+        Object.entries(this.balls).forEach(
+            ([key, ball]) => {
                 ball.tick(keyState, harmonicContext);
-                xValues.push(ball.x);
-                yValues.push(ball.y);
-                zValues.push(ball.z);
-                return ball.presence > 0;
+                
+                if (ball.isDead) {
+                    this.deleteBall(ball.harmCoords);
+                    return;
+                }
+
+                xValues.push(ball.pos.x);
+                yValues.push(ball.pos.y);
+                zValues.push(ball.pos.z);
             }
-        ));
+        );
         if (xValues.length !== 0) {
-            if (!IS_3D)
-                this.#stddev = (math.std(xValues) + math.std(yValues)) / 2;
-            else
-                this.#stddev = (math.std(xValues) + math.std(yValues) + math.std(zValues)) / 3;
+            this.#stddev = (math.std(xValues) + math.std(yValues) + math.std(zValues)) / 3;
         }
         else
             this.#stddev = 0;
 
         if (SHOW_DEBUG_BALLS) {
-            [this.harmonicCenterBall.x, this.harmonicCenterBall.y] = harmonicContext.tonalCenterUnscaledCoords;
+            [this.harmonicCenterBall.pos.x, this.harmonicCenterBall.pos.y, this.harmonicCenterBall.pos.z] = harmonicContext.tonalCenterUnscaledCoords;
             let hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / EDO * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
-            this.harmonicCenterBall.ballColor = color(hue, 70, 100, 0.5);
-        }
-    }
-
-    /**
-     *
-     * @param {Camera} camera
-     * @param {p5.Graphics} graphics buffer to draw to
-     */
-    draw(camera, graphics) {
-        if (SHOW_DEBUG_BALLS) {
-            this.originBall.draw(camera, graphics);
-            this.harmonicCenterBall.draw(camera, graphics);
-        }
-        
-        for (const [_, ball] of Object.entries(this.balls)) {
-            ball.draw(camera, graphics);
+            this.harmonicCenterBall.ballColor.setHSL(hue, 0.9, 0.6);
+            this.harmonicCenterBall.updateDrawing();
+            this.originBall.updateDrawing();
         }
     }
 
@@ -455,145 +546,98 @@ class BallsManager {
         return this.#stddev;
     }
 
-    get numBalls() {
+    /**
+     * Retrieves total amount of ball objects in memory including inactive/dead balls.
+     */
+    get numBallObjects() {
+        return Object.keys(this.balls).length + this.#listOfDeadBalls.length;
+    }
+
+    /**
+     * Retrieves current number of balls active.
+     */
+    get numBallsAlive() {
         return Object.keys(this.balls).length;
     }
 }
 
-class Particle {
-    x; y; z;
-    dx; dy; dz;
-    life;
-    color;
-    size;
-    hue;
-
-    constructor(x, y, z, dx, dy, dz, hue) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        this.dx = dx;
-        this.dy = dy;
-        this.dz = dz;
-        this.life = 1;
-        this.hue = hue;
-        this.color = color(
-            this.hue,
-            100 * Math.pow((1 - this.life), 2),
-            50 + 50 * this.life,
-            Math.pow(this.life, 0.7));
-        this.size = (PARTICLE_MIN_SIZE + HAPPENINGNESS * (PARTICLE_MAX_SIZE - PARTICLE_MIN_SIZE)) * Math.pow(this.life, 0.7);
-    }
-
+export class KeyCenterParticleFountain {
+    
     /**
-     * Use this function to reuse particle objects. Save the GC.
-     */
-    realive(x, y, z, dx, dy, dz, hue) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        this.dx = dx;
-        this.dy = dy;
-        this.dz = dz;
-        this.life = 1;
-        this.hue = hue;
-        this.color = color(
-            this.hue,
-            100 * Math.pow((1 - this.life), 2),
-            50 + 50 * this.life,
-            Math.pow(this.life, 0.7));
-        this.size = (PARTICLE_MIN_SIZE + HAPPENINGNESS * (PARTICLE_MAX_SIZE - PARTICLE_MIN_SIZE)) * Math.pow(this.life, 0.7);
-    }
-
-    tick() {
-        this.dx *= 1 - 0.5 * deltaTime/1000;
-        this.dy *= 1 - 0.5 * deltaTime/1000;
-        this.dz *= 1 - 0.5 * deltaTime/1000;
-        this.x += this.dx * deltaTime / 1000;
-        this.y += this.dy * deltaTime / 1000;
-        this.z += this.dz * deltaTime / 1000;
-        // 1 means fully alive and new
-        // <= 0 means dead
-        this.life -= deltaTime/1000 / PARTICLE_LIFE_SECS;
-
-        if (!IS_3D) {
-            this.color = color(
-                this.hue,
-                100 * Math.pow((1 - this.life), 0.5),
-                50 + 50 * this.life,
-                Math.pow(this.life, 0.7));
-            this.size = (PARTICLE_MIN_SIZE + HAPPENINGNESS * (PARTICLE_MAX_SIZE - PARTICLE_MIN_SIZE)) * Math.pow(this.life, 0.7);
-        }
-
-        // 3d particles are drawn by the fountain
-    }
-
-    /**
-     * Draw the particle (only do this in 2D mode)
-     * In 3D, the particle fountain handles drawing
-     */
-    draw(camera, graphics) {
-        if (this.life <= 0) return;
-
-        if (!IS_3D) {
-            let unscaledCoords = [this.x, this.y];
-            let [x, y] = camera.toScreenCoordinates(camera.project(unscaledCoords));
-            let size = camera.projectScalar(this.size, unscaledCoords);
-            graphics.noStroke();
-            graphics.fill(this.color);
-            graphics.circle(x, y, size);
-        } else {
-            // do nothing
-            // particle drawing handled by particle fountain to save on uniform state changes
-        }
-    }
-
-    get isDead() {  return this.life <= 0; }
-}
-
-class KeyCenterParticleFountain {
-    /**
-     * @type {[Particle]}
-     */
-    particles = [];
-    /**
-     * Stores indexes of dead particles.
-     */
-    deadParticleIndices = [];
-    x = 0; y = 0; z = 0;
-    hue;
-
-    /**
-     * Create a new particle.
+     * Position of the particle emitter
      * 
-     * @param {HarmonicContext} harmonicContext 
-     * @param {number} dXdueToRot only for 2d
-     * @param {number} dYdueToRot only for 2d
+     * @type {THREE.Vector3}
      */
-    #createNewParticle(dXdueToRot, dYdueToRot) {
-        let speed = PARTICLE_MIN_SPEED + Math.random() * (PARTICLE_MAX_SPEED - PARTICLE_MIN_SPEED);
-        let angle = Math.random() * Math.PI * 2;
-        let dx = 0, dy = 0, dz = 0;
-        if (!IS_3D) {
-            dx = speed * Math.cos(angle);
-            dy = speed * Math.sin(angle);
+    pos = new THREE.Vector3();
 
-            dx += dXdueToRot * (1 - PARTICLE_ROTATIONAL_LAG_COEF);
-            dy += dYdueToRot * (1 - PARTICLE_ROTATIONAL_LAG_COEF);
-        } else {
-            speed *= 20;
-            let phi = Math.random() * Math.PI * 2;
-            dx = speed * Math.cos(angle) * Math.sin(phi);
-            dy = speed * Math.sin(angle) * Math.sin(phi);
-            dz = speed * Math.cos(phi);
-        }
-        if (this.particles.length < MAX_PARTICLES)
-            this.particles.push(new Particle(this.x, this.y, this.z, dx, dy, dz, this.hue));
-        else {
-            let deadParticleIdx = this.deadParticleIndices.pop() || Math.floor(Math.random() * this.particles.length);
-            let particle = this.particles[deadParticleIdx];
-            particle.realive(this.x, this.y, this.z, dx, dy, dz, this.hue);
-        }
+    /**
+     * A number from {@link MIN_FIFTH_HUE} to {@link MAX_FIFTH_HUE} representing the hue of the fountain.
+     */
+    hue;
+
+    /**
+     * @type {Nebula.System}
+     */
+    system;
+
+    /**
+     * @type {Nebula.Emitter}
+     */
+    emitter;
+
+    /**
+     * @type {Nebula.SpriteRenderer}
+     */
+    particleRenderer;
+
+    /**
+     * @type {THREE.Sprite}
+     */
+    sprite;
+
+    /**
+     * @type {THREE.PointLight}
+     */
+    pointLight;
+
+
+    constructor() {
+        this.system = new Nebula.System(THREE);
+        this.emitter = new Nebula.Emitter();
+        this.particleRenderer = new Nebula.SpriteRenderer(window.scene, THREE);
+
+        let spriteMap = new THREE.TextureLoader().load('./dot.png');
+        let material = new THREE.SpriteMaterial({
+            map: spriteMap,
+            color: 0xffffff,
+            blending: THREE.AdditiveBlending,
+            fog: true
+        });
+        this.sprite = new THREE.Sprite(material);
+
+        this.emitter
+            .setRate(new Nebula.Rate(new Nebula.Span(5, 10), new Nebula.Span(0.01, 0.03)))
+            .addInitializers([
+                new Nebula.Body(this.sprite),
+                new Nebula.Mass(1),
+                new Nebula.Life(1, 3),
+                new Nebula.Radius(0, 2),
+                new Nebula.Position(new Nebula.SphereZone(0,0,0,1)), // x, y, z, radius
+            ])
+            .addBehaviours([
+            ])
+            .setPosition({
+                x: 0, y: 0, z: 0
+            })
+            .emit();
+        
+        this.system
+            .addEmitter(this.emitter)
+            .addRenderer(this.particleRenderer)
+            .emit({});
+        
+        this.pointLight = new THREE.PointLight(0xffffff, 0, 0, 1);
+        scene.add(this.pointLight);
     }
 
     /**
@@ -601,97 +645,74 @@ class KeyCenterParticleFountain {
      * @param {number} dRotator
      * @param {Camera} camera
      */
-    tick(harmonicContext, dRotator, camera) {
-        for (let i = 0; i < this.particles.length; i++) {
-            let particle = this.particles[i];
-            if (!particle.isDead) {
-                particle.tick();
-                // if particle died exactly during this tick, add its index to the dead
-                // particle list so that it will be the first to be revived later on.
-                if (particle.isDead) this.deadParticleIndices.push(i);
-            }
-        }
-
+    tick(harmonicContext) {
         this.hue = MIN_FIFTH_HUE + harmonicContext.centralFifth / EDO * (MAX_FIFTH_HUE - MIN_FIFTH_HUE);
 
         let [targetX, targetY, targetZ] = harmonicContext.tonalCenterUnscaledCoords;
-        this.x += (targetX - this.x) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
-        this.y += (targetY - this.y) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
-        this.z += (targetZ - this.z) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
+        this.pos.x += (targetX - this.pos.x) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
+        this.pos.y += (targetY - this.pos.y) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
+        this.pos.z += (targetZ - this.pos.z) * deltaTime / 1000 * (1 + HAPPENINGNESS * HARMONIC_CENTER_SPEED_HAPPENINGNESS) * HARMONIC_CENTER_SPEED;
 
-        let dxDueToRot = 0, dyDueToRot = 0;
-        if (!IS_3D) {
-            // counter rotation:
-            let [dX_dRot, dY_dRot] = harmonicContext.dCenterCoords_dRotator;
+        let color = new THREE.Color().setHSL(this.hue, 0.6 + 0.4 * HAPPENINGNESS, 0.4 + 0.2 * HAPPENINGNESS);
+        this.emitter.setPosition({
+            x: this.pos.x,
+            y: this.pos.y,
+            z: this.pos.z
+        }).setBehaviours([
+            new Nebula.Alpha(0.08 + 0.13 * HAPPENINGNESS, 0 + 0.04 * HAPPENINGNESS, Infinity, Nebula.ease.easeInSine),
+            new Nebula.RandomDrift(1 + 1 * HAPPENINGNESS, 1 + 1 * HAPPENINGNESS, 1 + 1 * HAPPENINGNESS, 0.1),
+            new Nebula.Repulsion(this.pos, 0.1 + 0.3 * HAPPENINGNESS * HAPPENINGNESS, BALL_SIZE*2, Infinity, Nebula.ease.easeInQuad),
+            new Nebula.Scale(new Nebula.Span(2 + HAPPENINGNESS, 1), 0),
+            new Nebula.Color(
+                color, 
+                new THREE.Color().setHSL(this.hue, 0.3 + 0.3 * HAPPENINGNESS, 0.5 + 0.2 * HAPPENINGNESS), 
+                Infinity, Nebula.ease.easeOutSine)
+        ]).setInitializers([
+            new Nebula.Body(this.sprite),
+            new Nebula.Mass(1),
+            new Nebula.Life(1 + 3 * HAPPENINGNESS, 2 + 3 * HAPPENINGNESS),
+            new Nebula.Radius(0 + HAPPENINGNESS, 1.5 + 1.6 * HAPPENINGNESS),
+            new Nebula.Position(new Nebula.SphereZone(0,0,0, 1 + 13 * HAPPENINGNESS)), // x, y, z, radius
+            new Nebula.RadialVelocity(5, new Nebula.Vector3D(0, 1, 1), 2)
+        ]);
+        this.system.update(deltaTime/1000);
 
-            dxDueToRot = dX_dRot * dRotator;
-            dyDueToRot = dY_dRot * dRotator;
-
-            let rotLagX = - dxDueToRot * HARMONIC_CENTER_ROTATIONAL_LAG_COEF;
-            let rotLagY = - dyDueToRot * HARMONIC_CENTER_ROTATIONAL_LAG_COEF;
-
-            let [projRotLagX, projRotLagY] = camera.project([rotLagX + this.x, rotLagY + this.y]);
-            if (Math.abs(projRotLagX) > HARMONIC_CENTER_MAX_ROTATIONAL_LAG_X_PX)
-                projRotLagX = HARMONIC_CENTER_MAX_ROTATIONAL_LAG_X_PX * Math.sign(projRotLagX);
-            if (Math.abs(projRotLagY) > HARMONIC_CENTER_MAX_ROTATIONAL_LAG_Y_PX)
-                projRotLagY = HARMONIC_CENTER_MAX_ROTATIONAL_LAG_Y_PX * Math.sign(projRotLagY);
-
-            [rotLagX, rotLagY] = camera.inverseProject([projRotLagX, projRotLagY]);
-            rotLagX -= this.x;
-            rotLagY -= this.y;
-
-            this.x += dxDueToRot + rotLagX;
-            this.y += dyDueToRot + rotLagY;
-        }
-
-        if (Math.random() > PARTICLE_MIN_CHANCE + HAPPENINGNESS * (PARTICLE_MAX_CHANCE - PARTICLE_MIN_CHANCE))
-            this.#createNewParticle(dxDueToRot, dyDueToRot);
-    }
-
-    draw(camera, graphics) {
-        if (IS_3D) {
-            graphics.lightFalloff(0.5, 0.005, 0.015);
-            graphics.pointLight(this.hue, 80, 100, this.x, this.y, this.z);
-
-            // stores previous xyz translation value so that 
-            // translations can be done relative
-            let x = 0, y = 0, z = 0;
-
-            // in 3D mode, particles are drawn here
-            graphics.push();
-            graphics.specularMaterial(this.hue, 80, 70, 0.7);
-            graphics.shininess(60);
-            this.particles.forEach(particle => {
-                if (!particle.isDead) {
-                    graphics.translate(particle.x - x, particle.y - y, particle.z - z);
-                    x = particle.x;
-                    y = particle.y;
-                    z = particle.z;
-                    graphics.sphere(particle.life * 2, 5, 5);
-                }
-            });
-            graphics.pop();
-        } else {
-            for (let particle of this.particles) {
-                particle.draw(camera, graphics);
-            }
-        }
+        this.pointLight.position.copy(this.pos);
+        this.pointLight.color.set(color).addScalar(0.3);
+        this.pointLight.intensity = 200 + 2000 * Math.pow(HAPPENINGNESS, 2.5);
     }
 
     get numParticles() {
-        return this.particles.length;
+        return this.system.getCount();
     }
 }
 
-class Scaffolding {
-    reasonForExisting; // Contains the most recent Ball object which requires the existence of this line.
-    fromX;
-    fromY;
-    fromZ;
-    toX;
-    toY;
-    toZ;
+export class Scaffolding {
+
+    /** 
+     * Contains the most recent Ball object which requires the existence of this line. 
+     * 
+     * @type {Ball}
+     */
+    reasonForExisting;
+
+    /**
+     * @type {THREE.Vector3}
+     */
+    from = new THREE.Vector3();
+    
+    /**
+     * @type {THREE.Vector3}
+     */
+    to = new THREE.Vector3();
+
+    /**
+     * @type {HarmonicCoordinates}
+     */
     fromHarmCoords;
+    /**
+     * @type {HarmonicCoordinates}
+     */
     toHarmCoords;
     thickness = LINE_THICKNESS;
     color;
@@ -699,12 +720,34 @@ class Scaffolding {
     presence;
 
     /**
-     *
-     * @param {HarmonicCoordinates} from
-     * @param {HarmonicCoordinates} to
-     * @param {Ball} reasonForExisting
+     * Contains the geometry of the cylinder
+     * 
+     * @type {THREE.CylinderGeometry}
      */
-    constructor(from, to, reasonForExisting) {
+    #geometry;
+
+    /**
+     * Contains the line material
+     * 
+     * @type {THREE.MeshStandardMaterial}
+     */
+    #material;
+
+    /**
+     * Contains cylinder mesh
+     * 
+     * @type {THREE.Mesh}
+     */
+    #mesh;
+
+    /**
+     * Common setup between scaffolding constructor and realive methods
+     * 
+     * @param {HarmonicCoordinates} from 
+     * @param {HarmonicCoordinates} to 
+     * @param {Ball} reasonForExisting 
+     */
+    setup(from, to, reasonForExisting) {
         this.adjacency = from.checkAdjacent(to);
         if(this.adjacency === 0) {
             console.log(from, to);
@@ -715,8 +758,8 @@ class Scaffolding {
         this.presence = this.reasonForExisting.presence;
         this.fromHarmCoords = from;
         this.toHarmCoords = to;
-        [this.fromX, this.fromY, this.fromZ] = from.toUnscaledCoords();
-        [this.toX, this.toY, this.toZ] = to.toUnscaledCoords();
+        [this.from.x, this.from.y, this.from.z] = from.toUnscaledCoords();
+        [this.to.x, this.to.y, this.to.z] = to.toUnscaledCoords();
 
         switch (this.adjacency) {
             case 2:
@@ -746,81 +789,109 @@ class Scaffolding {
                 break;
         }
 
-        this.color.setAlpha(Math.pow(this.presence, 0.8));
+        // this.color.setAlpha(Math.pow(this.presence, 0.8));
         this.thickness = Math.pow(this.presence, 0.9) * (LINE_THICKNESS + 0.2 * HAPPENINGNESS);
-    }
-
-    tick() {
-        this.presence = this.reasonForExisting.presence;
-        this.color.setAlpha(Math.pow(this.presence, 0.8));
-        this.thickness = Math.pow(this.presence, 0.9) * (LINE_THICKNESS + 0.2 * HAPPENINGNESS);
-        [this.fromX, this.fromY, this.fromZ] = this.fromHarmCoords.toUnscaledCoords();
-        [this.toX, this.toY, this.toZ] = this.toHarmCoords.toUnscaledCoords();
     }
 
     /**
      *
-     * @param {Camera} camera
-     * @param {p5.Graphics} graphics
+     * @param {HarmonicCoordinates} from
+     * @param {HarmonicCoordinates} to
+     * @param {Ball} reasonForExisting
      */
-    draw(camera, graphics) {
-        if (!IS_3D) {
-            let [from, to] = [[this.fromX, this.fromY], [this.toX, this.toY]];
-            let [fromX, fromY] = camera.toScreenCoordinates(camera.project(from));
-            let [toX, toY] = camera.toScreenCoordinates(camera.project(to));
-            let fromWidth = camera.projectScalar(this.thickness, from);
-            let toWidth = camera.projectScalar(this.thickness, to);
-            let [dX, dY] = [toX - fromX, toY - fromY]; // direction vector
-            // use direction vector to leave a space so that adjacent lines don't connect
-            let fromXSpace = fromX + SCAFFOLDING_SPACE_RATIO * dX;
-            let toXSpace = toX - SCAFFOLDING_SPACE_RATIO * dX;
-            let fromYSpace = fromY + SCAFFOLDING_SPACE_RATIO * dY;
-            let toYSpace = toY - SCAFFOLDING_SPACE_RATIO * dY;
-            fromWidth = Math.max(MIN_LINE_THICKNESS_PX, Math.min(MAX_LINE_THICKNESS_PX, fromWidth));
-            toWidth = Math.max(MIN_LINE_THICKNESS_PX, Math.min(MAX_LINE_THICKNESS_PX, toWidth));
-            graphics.fill(this.color);
-            graphics.noStroke();
-            Scaffolding.drawVaryingWidthLine(graphics, fromXSpace, fromYSpace, toXSpace, toYSpace, fromWidth, toWidth);
-        } else {
-            graphics.push();
-            let from = createVector(this.fromX, this.fromY, this.fromZ);
-            let to = createVector(this.toX, this.toY, this.toZ);
-            let dV = to.sub(from); // direction vector
+    constructor(from, to, reasonForExisting) {
+        this.setup(from, to, reasonForExisting);
 
-            graphics.translate(from.lerp(to, 0.5)); // draw cylinder at midpoint between from and to
-            graphics.applyMatrix(rotateAlign(createVector(0,1,0), dV));
-            graphics.ambientMaterial(this.color);
-            graphics.cylinder(this.thickness * 5, dV.mag() * (1 - 2 * SCAFFOLDING_SPACE_RATIO));
-            graphics.pop();
-        }
+        this.#geometry = new THREE.CylinderGeometry(
+            1, 
+            1, 
+            1, // default height to 1, scale later 
+            8, // no. radial segments
+        );
+
+        this.#material = new THREE.MeshStandardMaterial({
+            color: this.color,
+            metalness: 0,
+            roughness: 0.5,
+            transparent: true,
+            opacity: 0.5,
+        });
+
+        this.#mesh = new THREE.Mesh(this.#geometry, this.#material);
+        window.scene.add(this.#mesh);
     }
 
-    static drawVaryingWidthLine(graphics, x1, y1, x2, y2, startWidth, endWidth) {
-        const halfStartWidth = startWidth / 2
-        const halfEndWidth = endWidth / 2
-        const angle = Math.atan2(y2 - y1, x2 - x1);
-        const startXOffset = Math.sin(angle) * halfStartWidth;
-        const startYOffset = Math.cos(angle) * halfStartWidth;
-        const endXOffset = Math.sin(angle) * halfEndWidth;
-        const endYOffset = Math.cos(angle) * halfEndWidth;
-        graphics.beginShape();
-        graphics.vertex(x1 + startXOffset, y1 - startYOffset);
-        graphics.vertex(x2 + endXOffset, y2 - endYOffset);
-        graphics.vertex(x2 - endXOffset, y2 + endYOffset);
-        graphics.vertex(x1 - startXOffset, y1 + startYOffset);
-        graphics.endShape(CLOSE);
+    /**
+     * Re-activates this scaffolding.
+     * 
+     * @param {HarmonicCoordinates} from 
+     * @param {HarmonicCoordinates} to 
+     * @param {Ball} reasonForExisting 
+     * @returns {Scaffolding} This instance
+     */
+    realive(from, to, reasonForExisting) {
+        this.setup(from, to, reasonForExisting);
+        window.scene.add(this.#mesh);
+        return this;
+    }
+
+    /**
+     * Call this to remove line from scene and stop updating.
+     * 
+     * If this is called even when the {@link reasonForExisting} is still alive,
+     * the scaffolding will still be removed and will stop updating until {@link realive} is called.
+     */
+    kill() {
+        this.presence = 0;
+        window.scene.remove(this.#mesh);
+    }
+
+    tick() {
+        if (this.isDead) return;
+        this.presence = this.reasonForExisting.presence;
+
+        if (this.isDead) {
+            this.kill();
+            return;
+        }
+
+        // this.color.setAlpha(Math.pow(this.presence, 0.8));
+        this.thickness = Math.pow(this.presence, 0.9) * (1 + 0.2 * HAPPENINGNESS) * LINE_THICKNESS;
+        [this.from.x, this.from.y, this.from.z] = this.fromHarmCoords.toUnscaledCoords();
+        [this.to.x, this.to.y, this.to.z] = this.toHarmCoords.toUnscaledCoords();
+
+        this.#material.color.set(this.color);
+        this.#material.opacity = 0.1 + 0.5 * this.presence;
+        this.#mesh.position.copy(addJitter(this.from.clone().add(this.to).divideScalar(2)));
+        this.#mesh.scale.set(this.thickness, this.to.distanceTo(this.from) - BALL_SIZE * 0.3, this.thickness);;
+        this.#mesh.lookAt(this.to);
+        this.#mesh.rotateX(Math.PI / 2);
+    }
+
+    get isDead() {
+        return this.presence <= 0;
     }
 }
 
-class ScaffoldingManager {
-    /** Mapping of from/to coordinates to scaffolding lines
+export class ScaffoldingManager {
+    /** 
+     * Mapping of [from, to] coordinates to scaffolding lines.
+     * 
+     * Only contains active lines.
      *
      * @type {Object.<string, Scaffolding>}
      */
     #lines = {};
 
     /**
-     * returns the Scaffolding object from the internal repository of lines
+     * Stores unused lines for reuse
+     * 
+     * @type {Scaffolding[]}
+     */
+    #deadLines = [];
+
+    /**
+     * returns the Scaffolding object from the internal repository of active lines
      * @param {HarmonicCoordinates} fromCoord
      * @param {HarmonicCoordinates} toCoord
      * @returns {?Scaffolding}
@@ -829,39 +900,54 @@ class ScaffoldingManager {
         return this.#lines[[fromCoord, toCoord]] || this.#lines[[toCoord, fromCoord]] || null
     }
 
+    /**
+     * Inactivates a scaffolding line that connects the points from/toCoord.
+     * 
+     * The order of the two coordinates do not matter.
+     * 
+     * @param {HarmonicCoordinates} fromCoord 
+     * @param {HarmonicCoordinates} toCoord 
+     */
     #deleteLine(fromCoord, toCoord) {
-        delete this.#lines[[fromCoord, toCoord]]
-        delete this.#lines[[toCoord, fromCoord]];
+        if (this.#lines[[fromCoord, toCoord]]) {
+            this.#deadLines.push(this.#lines[[fromCoord, toCoord]]);
+            this.#lines[[fromCoord, toCoord]].kill();
+            delete this.#lines[[fromCoord, toCoord]];
+        }
+        if (this.#lines[[toCoord, fromCoord]]) {
+            this.#deadLines.push(this.#lines[[toCoord, fromCoord]]);
+            this.#lines[[toCoord, fromCoord]].kill();
+            delete this.#lines[[toCoord, fromCoord]];
+        }
     }
 
     #createLine(fromCoord, toCoord, reasonForExisting) {
         this.#deleteLine(fromCoord, toCoord);
-        this.#lines[[fromCoord, toCoord]] = new Scaffolding(fromCoord, toCoord, reasonForExisting);
+        let newScaffolding = this.#deadLines.pop();
+        if (newScaffolding) {
+            newScaffolding.realive(fromCoord, toCoord, reasonForExisting);
+        } else {
+            newScaffolding = new Scaffolding(fromCoord, toCoord, reasonForExisting);
+        }
+        this.#lines[[fromCoord, toCoord]] = newScaffolding;
     }
 
     /**
      * NOTE: `ScaffoldingManager.tick()` should be called AFTER `BallsManager.tick()`.
      */
     tick() {
-        this.#lines = Object.fromEntries(Object.entries(this.#lines).filter(
+        Object.entries(this.#lines).forEach(
             ([k,line]) => {
                 line.tick();
-                return line.presence > 0;
+                if (line.isDead)
+                    this.#deleteLine(line.fromHarmCoords, line.toHarmCoords);
             }
-        ));
+        );
     }
 
     /**
-     * NOTE: `ScaffoldingManager.draw()` should be called BEFORE `BallsManager.draw()`.
-     */
-    draw(camera, graphics) {
-        for (const [_, line] of Object.entries(this.#lines)) {
-            line.draw(camera, graphics);
-        }
-    }
-
-    /**
-     * Create the necessary scaffolding between two balls
+     * Create the necessary scaffolding between two places
+     * 
      * @param {HarmonicCoordinates} fromHarmonicCoords
      * @param {Ball} toBall
      */
@@ -904,5 +990,4 @@ class ScaffoldingManager {
             this.#createLine(from, to, toBall);
         }
     }
-
 }

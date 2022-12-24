@@ -1,3 +1,5 @@
+import { EDO, USE_OCTAVE_REDUCED_PRIMES } from './configs.js';
+
 function primeFactors(n) {
     const factors = {};
     let divisor = 2;
@@ -20,31 +22,7 @@ function toRad(deg) {
     return deg/180 * Math.PI;
 }
 
-let ROTATOR = 0;
-
-const P2_X = () => Math.cos(toRad(P2_angle) + ROTATOR * Math.log2(2)) * (P2_len);
-const P2_Y = () => Math.sin(toRad(P2_angle) + ROTATOR * Math.log2(2)) * (P2_len);
-const P3_X = () => Math.cos(toRad(P3_angle) + ROTATOR * Math.log2(3)) * (P3_len);
-const P3_Y = () => Math.sin(toRad(P3_angle) + ROTATOR * Math.log2(3)) * (P3_len);
-const P5_X = () => Math.cos(toRad(P5_angle) + ROTATOR * Math.log2(5)) * (P5_len);
-const P5_Y = () => Math.sin(toRad(P5_angle) + ROTATOR * Math.log2(5)) * (P5_len);
-const P7_X = () => Math.cos(toRad(-P7_angle) + ROTATOR * Math.log2(7)) * (P7_len);
-const P7_Y = () => Math.sin(toRad(-P7_angle) + ROTATOR * Math.log2(7)) * (P7_len);
-const P11_X = () => Math.cos(toRad(-P11_angle) + ROTATOR * Math.log2(11)) * (P11_len);
-const P11_Y = () => Math.sin(toRad(-P11_angle) + ROTATOR * Math.log2(11)) * (P11_len);
-
-const dp2drotx = () => -P2_len * Math.log2(2) * Math.sin(toRad(P2_angle) + ROTATOR * Math.log2(2));
-const dp2droty = () => P2_len * Math.log2(2) * Math.cos(toRad(P2_angle) + ROTATOR * Math.log2(2));
-const dp3drotx = () => -P3_len * Math.log2(3) * Math.sin(toRad(P3_angle) + ROTATOR * Math.log2(3));
-const dp3droty = () => P3_len * Math.log2(3) * Math.cos(toRad(P3_angle) + ROTATOR * Math.log2(3));
-const dp5drotx = () => -P5_len * Math.log2(5) * Math.sin(toRad(P5_angle) + ROTATOR * Math.log2(5));
-const dp5droty = () => P5_len * Math.log2(5) * Math.cos(toRad(P5_angle) + ROTATOR * Math.log2(5));
-const dp7drotx = () => -P7_len * Math.log2(7) * Math.sin(toRad(-P7_angle) + ROTATOR * Math.log2(7));
-const dp7droty = () => P7_len * Math.log2(7) * Math.cos(toRad(-P7_angle) + ROTATOR * Math.log2(7));
-const dp11drotx = () => -P11_len * Math.log2(11) * Math.sin(toRad(-P11_angle) + ROTATOR * Math.log2(11));
-const dp11droty = () => P11_len * Math.log2(11) * Math.cos(toRad(-P11_angle) + ROTATOR * Math.log2(11));
-
-const DIST_SCALE_FACTOR_3D = 30;
+const DIST_SCALE_FACTOR_3D = 20;
 const P2_3d_X = 0;
 const P2_3d_Y = Math.log2(2);
 const P2_3d_Z = 0;
@@ -61,7 +39,7 @@ const P11_3d_X = Math.log2(11) * Math.sin(toRad(45)) * Math.sin(toRad(45));
 const P11_3d_Y = Math.log2(11) * Math.cos(toRad(45));
 const P11_3d_Z = Math.log2(11) * Math.sin(toRad(45)) * Math.cos(toRad(45));
 
-class HarmonicCoordinates {
+export class HarmonicCoordinates {
     #p2; #p3; #p5; #p7; #p11;
 
     constructor(p2, p3, p5, p7, p11) {
@@ -166,30 +144,10 @@ class HarmonicCoordinates {
     }
 
     toUnscaledCoords() {
-        if (IS_3D) {
-            return [
-                DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_X + this.p3 * P3_3d_X + this.p5 * P5_3d_X + this.p7 * P7_3d_X + this.p11 * P11_3d_X),
-                DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_Y + this.p3 * P3_3d_Y + this.p5 * P5_3d_Y + this.p7 * P7_3d_Y + this.p11 * P11_3d_Y),
-                DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_Z + this.p3 * P3_3d_Z + this.p5 * P5_3d_Z + this.p7 * P7_3d_Z + this.p11 * P11_3d_Z),
-            ]
-        }
-
         return [
-            this.p2 * P2_X() + this.p3 * P3_X() + this.p5 * P5_X() + this.p7 * P7_X() + this.p11 * P11_X(),
-            this.p2 * P2_Y() + this.p3 * P3_Y() + this.p5 * P5_Y() + this.p7 * P7_Y() + this.p11 * P11_Y(),
-            0
-        ]
-    }
-
-    /**
-     * Use this to counter global translation when rotation happens and the
-     * key center is far from the origin. Only for 2D.
-     * @returns {number[]}
-     */
-    get dUnscaledCoords_dRotation() {
-        return [
-            this.p2 * dp2drotx() + this.p3 * dp3drotx() + this.p5 * dp5drotx() + this.p7 * dp7drotx() + this.p11 * dp11drotx(),
-            this.p2 * dp2droty() + this.p3 * dp3droty() + this.p5 * dp5droty() + this.p7 * dp7droty() + this.p11 * dp11droty()
+            DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_X + this.p3 * P3_3d_X + this.p5 * P5_3d_X + this.p7 * P7_3d_X + this.p11 * P11_3d_X),
+            DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_Y + this.p3 * P3_3d_Y + this.p5 * P5_3d_Y + this.p7 * P7_3d_Y + this.p11 * P11_3d_Y),
+            DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_Z + this.p3 * P3_3d_Z + this.p5 * P5_3d_Z + this.p7 * P7_3d_Z + this.p11 * P11_3d_Z),
         ]
     }
 
@@ -486,7 +444,7 @@ const RATIOS22 = {
  * @param {Number} edosteps 
  * @returns An array of `HarmonicCoordinates` representing possible coordinates this edostep maps to.
  */
-function convertStepsToPossibleCoord(steps) {
+export function convertStepsToPossibleCoord(steps) {
     let octaves = math.floor(steps / EDO);
     let edosteps = mod(steps, EDO);
     // the .add function causes this function to return an entirely new copy of HarmonicCoordinates
@@ -503,7 +461,7 @@ function convertStepsToPossibleCoord(steps) {
 /**
  * A key-value-pair mapping edosteps to number of fifths spanned.
  */
-const EDOSTEPS_TO_FIFTHS_MAP = (() => {
+export const EDOSTEPS_TO_FIFTHS_MAP = (() => {
     let x = {};
     let d = 0;
     // Number of edosteps for the best P5 approximation.

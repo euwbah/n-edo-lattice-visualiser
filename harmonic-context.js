@@ -1,4 +1,7 @@
-class Pitch {
+import { CONSONANCE_THRESHOLD, EDO, FASTEST_KEY_CHANGE_SECS, HARMONIC_CONTEXT_METHOD, HIGHEST_REL_P2_DENOM, HIGHEST_REL_P3_DENOM, MAX_DISSONANCE, MAX_DURATION_BEFORE_FORGET_SECS, MAX_FATIGUE_SECS, MAX_HARMONIC_DISTANCE, MAX_NEW_NOTES_BEFORE_FORGET, MAX_SHORT_TERM_MEMORY } from "./configs.js";
+import { EDOSTEPS_TO_FIFTHS_MAP, HarmonicCoordinates, convertStepsToPossibleCoord } from "./just-intonation.js";
+
+export class Pitch {
     /**
      * @type {number}
      */
@@ -49,16 +52,12 @@ class Pitch {
 // for which all new notes will be judged with respect to,
 // and each addition of a new note will cause the harmonic centroid
 // (i.e. the 'key center') to update.
-class HarmonicContext {
+export class HarmonicContext {
     #avgHc = new HarmonicCoordinates(0,0,0,0,0);
     /**
      * In 2D proj, the third value is not used.
      */
     #tonalCenterUnscaledCoords = [0, 0, 0];
-    /**
-     * Only valid for 2D
-     */
-    #dCenter_dRotator = [0, 0];
     /**
      * @type {[Pitch]}
      */
@@ -124,18 +123,11 @@ class HarmonicContext {
     }
 
     /**
-     * a 3D vector representing coords of the tonal center. In 2D projections the third value is not used.
+     * a 3D vector representing coords of the tonal center.
      * NOTE: tonal center is calculated using `#avcHc` not `#effectiveOrigin`.
      */
     get tonalCenterUnscaledCoords() {
         return this.#tonalCenterUnscaledCoords;
-    }
-
-    /**
-     * Only valid for 2D.
-     */
-    get dCenterCoords_dRotator() {
-        return this.#dCenter_dRotator;
     }
 
     get stmFrequencies() {
@@ -162,7 +154,6 @@ class HarmonicContext {
         this.#effectiveMaxDiss = CONSONANCE_THRESHOLD + (MAX_DISSONANCE - CONSONANCE_THRESHOLD) * (1 - this.fatigue);
 
         this.#tonalCenterUnscaledCoords = this.#avgHc.toUnscaledCoords();
-        this.#dCenter_dRotator = this.#avgHc.dUnscaledCoords_dRotation;
 
         // Remove notes that are played too long ago/forgotten.
         let now = new Date();
@@ -321,7 +312,8 @@ class HarmonicContext {
 
             if (!existingPitch) {
                 // prepare to add new pitch by assigning bestFitRelativeNote and bestFitRatio
-                minDist = Infinity;
+                minDist = Infinity; // (not related to previous use)
+                
                 for (let pitch of this.shortTermMemory) {
                     let dist = pitch.absoluteRatio.harmonicDistance(newAbsRatio);
                     if (dist < minDist) {

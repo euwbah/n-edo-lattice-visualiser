@@ -1,11 +1,16 @@
 // This dict only contains notes that are currently being sounded.
+
+import { NOTE_ON_HAPPENINGNESS, RESET_TIME_SECS, addHappeningness } from "./configs.js";
+import { HarmonicContext } from "./harmonic-context.js";
+import { ScaffoldingManager, BallsManager } from "./drawn-objects.js";
+
 /**
  * @type {Object.<number, KeyState>}
  */
-let KEYS_STATE = {};
-let SUSTAIN_STATE = false;
+export let KEYS_STATE = {};
+export let SUSTAIN_STATE = false;
 
-class KeyState {
+export class KeyState {
     constructor(stepsFromA, vel) {
         this.stepsFromA = stepsFromA;
         this.vel = vel;
@@ -15,7 +20,7 @@ class KeyState {
 
 let clearHarmonicContextTimeoutID = null;
 
-function countExistingKeysState() {
+export function countExistingKeysState() {
     let held = 0, sustained = 0;
     for (let [_, v] of Object.entries(KEYS_STATE)) {
         if (v.fromSustainPedal)
@@ -35,9 +40,9 @@ function countExistingKeysState() {
  * @param {BallsManager} ballManager
  * @param {ScaffoldingManager} scaffoldingManager
  */
-function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManager) {
+export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManager) {
     // console.log('received note on: ', stepsFromA, vel);
-    addHappeningness(NOTE_ON_HAPPENINGNESS * Math.pow(vel/127, 1.5) + 0.01);
+    addHappeningness(NOTE_ON_HAPPENINGNESS * Math.pow(vel/127, 1.5) + 0.002);
     if (clearHarmonicContextTimeoutID !== null) {
         clearTimeout(clearHarmonicContextTimeoutID);
         clearHarmonicContextTimeoutID = null;
@@ -49,13 +54,13 @@ function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManage
         // the harmonic context is fresh.
         ballManager.noteOn(relativeRatio, stepsFromA, vel);
     } else {
-        let absoluteRatio = fromPitch.absoluteRatio.add(relativeRatio);
+        let absoluteRatio = fromPitch.absoluteRatio.add(relativeRatio); // the absolute interval of new ball
         let newBall = ballManager.noteOn(absoluteRatio, stepsFromA, vel);
         scaffoldingManager.create(fromPitch.absoluteRatio, newBall);
     }
 }
 
-function startKeyCenterResetTimer() {
+export function startKeyCenterResetTimer() {
     if (Object.keys(KEYS_STATE).length === 0 && clearHarmonicContextTimeoutID === null) {
         clearHarmonicContextTimeoutID = setTimeout(() => {
             harmonicContext.reset();
@@ -64,7 +69,7 @@ function startKeyCenterResetTimer() {
     }
 }
 
-function noteOff(stepsFromA, vel) {
+export function noteOff(stepsFromA, vel) {
     // console.log('received note off: ', stepsFromA, vel);
     if (SUSTAIN_STATE) {
         KEYS_STATE[stepsFromA].fromSustainPedal = true;
@@ -75,7 +80,7 @@ function noteOff(stepsFromA, vel) {
     startKeyCenterResetTimer();
 }
 
-function cc(cc, value) {
+export function cc(cc, value) {
     // console.log('received cc: ', cc, value);
     if (cc === 64) {
         SUSTAIN_STATE = value >= 64;

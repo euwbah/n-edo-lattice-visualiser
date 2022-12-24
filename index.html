@@ -19,25 +19,46 @@
         }
 
         init_wasm();
-
     </script>
-    <script src="math.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
-    <script src="configs.js"></script>
-    <script src="vectors.js"></script>
-    <script src="just-intonation.js"></script>
-    <script src="harmonic-context.js"></script>
-    <script src="drawn-objects.js"></script>
-    <script src="note-tracking.js"></script>
-    <script src="main.js"></script>
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "./node_modules/three/build/three.module.js",
+            "three/addons/": "./node_modules/three/examples/jsm/",
+            // packages for troika three text
+            "troika-three-text": "./node_modules/troika-three-text/dist/troika-three-text.esm.js",
+            "troika-worker-utils": "./node_modules/troika-worker-utils/dist/troika-worker-utils.esm.js",
+            "troika-three-utils": "./node_modules/troika-three-utils/dist/troika-three-utils.esm.js",
+            "webgl-sdf-generator": "./node_modules/webgl-sdf-generator/dist/webgl-sdf-generator.mjs",
+            "bidi-js": "./node_modules/bidi-js/dist/bidi.mjs"
+          }
+        }
+    </script>
+    <script src="node_modules/three-nebula/build/three-nebula.js"></script>
     <style>
         body {
             margin: 0;
             overflow: hidden;
         }
+        #text {
+            position: absolute;
+            top: 0.5em;
+            left: 0.5em;
+            z-index: 100;
+            color: white;
+            font-family: monospace;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
-
+    <div id="text"></div>
+    <script src="math.js"></script>
+    <script src="configs.js" type="module"></script>
+    <script src="just-intonation.js" type="module"></script>
+    <script src="harmonic-context.js" type="module"></script>
+    <script src="drawn-objects.js" type="module"></script>
+    <script src="note-tracking.js" type="module"></script>
+    <script src="main.js" type="module"></script>
 </body>
 </html>
