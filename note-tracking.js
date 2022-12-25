@@ -8,6 +8,7 @@ import { ScaffoldingManager, BallsManager } from "./drawn-objects.js";
  * @type {Object.<number, KeyState>}
  */
 export let KEYS_STATE = {};
+window.keysState = KEYS_STATE;
 export let SUSTAIN_STATE = false;
 
 export class KeyState {
@@ -41,7 +42,7 @@ export function countExistingKeysState() {
  * @param {ScaffoldingManager} scaffoldingManager
  */
 export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManager) {
-    // console.log('received note on: ', stepsFromA, vel);
+    console.log('received note on: ', stepsFromA, vel);
     addHappeningness(NOTE_ON_HAPPENINGNESS * Math.pow(vel/127, 1.5) + 0.002);
     if (clearHarmonicContextTimeoutID !== null) {
         clearTimeout(clearHarmonicContextTimeoutID);

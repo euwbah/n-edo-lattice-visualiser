@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { HarmonicContext } from './harmonic-context.js';
 import * as NoteTracking from './note-tracking.js';
 import { BallsManager, Camera, KeyCenterParticleFountain, ScaffoldingManager } from './drawn-objects.js';
-import { HELD_NOTE_HAPPENINGNESS, SUSTAINED_NOTE_HAPPENINGNESS, VERSION, addHappeningness } from './configs.js';
+import { HELD_NOTE_HAPPENINGNESS, MAX_SHORT_TERM_MEMORY, SUSTAINED_NOTE_HAPPENINGNESS, VERSION, addHappeningness } from './configs.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DebugEnvironment } from 'three/addons/environments/DebugEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -126,7 +126,7 @@ function animate() {
 
     let [held, sustained] = NoteTracking.countExistingKeysState();
     addHappeningness(deltaTime / 4000 * (held * HELD_NOTE_HAPPENINGNESS + sustained * SUSTAINED_NOTE_HAPPENINGNESS));
-    HAPPENINGNESS = Math.max(0, HAPPENINGNESS - Math.pow(HAPPENINGNESS * deltaTime / 2000, 1.1));
+    HAPPENINGNESS = Math.max(0, HAPPENINGNESS - Math.pow(HAPPENINGNESS, 1.5) * deltaTime / 1500);
 
     harmonicContext.tick();
     ballManager.tick(NoteTracking.KEYS_STATE, harmonicContext);
@@ -146,9 +146,12 @@ function animate() {
         `
         ${VERSION}    ${(1000/deltaTime).toFixed(0)} fps
         center: ${cameraObject.center.x.toFixed(1)}, ${cameraObject.center.y.toFixed(1)}, ${cameraObject.center.z.toFixed(1)}, rot: ${cameraObject.theta.toFixed(2)}, ${cameraObject.phi.toFixed(2)}, dist: ${cameraObject.dist.toFixed(0)}
-        balls: ${ballManager.numBallsAlive}/${ballManager.numBallObjects}, part: ${particleFountain.numParticles}
+        b: ${ballManager.numBallsAlive}/${ballManager.numBallObjects}, part: ${particleFountain.numParticles}
         hap: ${HAPPENINGNESS.toFixed(3)}, std: ${ballManager.stdDeviation.toFixed(1)}
+        stm: ${harmonicContext.shortTermMemory.length} / ${MAX_SHORT_TERM_MEMORY}, dis: ${harmonicContext.dissonance.toFixed(1)}
         ${harmonicContext.effectiveOrigin.toMonzoString()}
+
+        ${harmonicContext.toVeryNiceDisplayString()}
         `.trim();
     
 }

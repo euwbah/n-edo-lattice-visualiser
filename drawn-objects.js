@@ -249,7 +249,8 @@ export class Ball {
             metalness: 0,
             roughness: 0.3,
             opacity: this.isDebug ? 0.4 : this.opacity,
-            transparent: true
+            transparent: true,
+            side: THREE.TwoPassDoubleSide,
         });
         this.#sphereMesh = new THREE.Mesh(this.#geometry, this.#material);
         this.updateDrawing();
@@ -312,7 +313,7 @@ export class Ball {
     }
 
     get lightness() {
-        return .36 + .2 * Math.pow(this.presence, 0.5);
+        return 0.42 + 0.14 * Math.pow(this.presence, 0.5);
     }
 
     get opacity() {
@@ -456,7 +457,7 @@ export class BallsManager {
      * @returns {Ball} The ball that was created/reused
      */
     noteOn(harmCoords, stepsFromA, velocity) {
-        console.log('ball note on: ', harmCoords.harmonicDistanceFromOrigin(), harmCoords);
+        // console.log('ball note on: ', harmCoords.toMonzoString(), stepsFromA, harmCoords);
         let presence = Math.pow(velocity / 127, 1) * 0.9 + 0.1;
         /** @type {Ball} */
         let existingBall = this.balls[harmCoords];
@@ -527,6 +528,10 @@ export class BallsManager {
                 if (ball.isDead) {
                     this.deleteBall(ball.harmCoords);
                     return;
+                }
+
+                if (ball.harmCoords != key) {
+                    console.warn('ball key mismatch: ', ball.harmCoords, key);
                 }
 
                 xValues.push(ball.pos.x);
@@ -677,7 +682,7 @@ export class KeyCenterParticleFountain {
         ]).setInitializers([
             new Nebula.Body(this.sprite),
             new Nebula.Mass(1),
-            new Nebula.Life(1 + 3 * HAPPENINGNESS, 2 + 3 * HAPPENINGNESS),
+            new Nebula.Life(1 + 1 * HAPPENINGNESS, 2 + 2 * HAPPENINGNESS),
             new Nebula.Radius(0 + HAPPENINGNESS, 1.5 + 1.6 * HAPPENINGNESS),
             new Nebula.Position(new Nebula.SphereZone(0,0,0, 1 + 13 * HAPPENINGNESS)), // x, y, z, radius
             new Nebula.RadialVelocity(5, new Nebula.Vector3D(0, 1, 1), 2)

@@ -7,9 +7,11 @@ export class Pitch {
      */
     stepsFromA;
     /**
+     * Absolute harmonic coordinates from 1/1
+     * 
      * @type {HarmonicCoordinates}
      */
-    functioningAs;
+    absoluteRatio;
     /**
      * @type {number}
      */
@@ -19,6 +21,8 @@ export class Pitch {
      */
     origin;
     /**
+     * Harmonic coordinates relative to {@link origin}
+     * 
      * @type {HarmonicCoordinates}
      */
     relativeRatio;
@@ -43,7 +47,7 @@ export class Pitch {
             this.absoluteRatio = this.origin.absoluteRatio.add(this.relativeRatio);
         else {
             this.absoluteRatio = this.relativeRatio;
-            origin = null;
+            this.origin = null;
         }
     }
 }
@@ -282,32 +286,51 @@ export class HarmonicContext {
             }
         } else if (HARMONIC_CONTEXT_METHOD == 'l2' || HARMONIC_CONTEXT_METHOD == 'l2eo') {
             /**
-             * @type {HarmonicCoordinates[]}
+             * A list of triples of (pitch, rel, abs)
+             * where pitch: the relative pitch in short term memory this note is relative to
+             * rel: the relative interval
+             * abs: the aboslute interval from 1/1.
+             * 
+             * @type {[Pitch, HarmonicCoordinates, HarmonicCoordinates][]}
              */
-            let candidatesAbs = []; // contains unique absolute ratios
+            let candidates = []; 
 
             for (let pitch of this.shortTermMemory) {
                 // relative candidate ratios to note in shortTermMem
                 let candidateRel = convertStepsToPossibleCoord(stepsFromA - pitch.stepsFromA);
-                candidatesAbs = candidatesAbs.concat(
-                    candidateRel.map(x => x.add(pitch.absoluteRatio))
-                    .filter(x => !candidatesAbs.includes(x)));
+                let cds = 
+                    candidateRel
+                        .map(x => [pitch, x, x.add(pitch.absoluteRatio)]);
+                candidates = candidates.concat(cds);
             }
 
             let minDist = Infinity;
+            /**
+             * Stores the absolute harmonic coordinate of the best fit note.
+             * 
+             * @type {HarmonicCoordinates}
+             */
             newAbsRatio = null;
-            for(let candidate of candidatesAbs) {
+            let _pitch = null;
+            let _rel = null;
+            for(let [pitch, rel, abs] of candidates) {
                 let dist;
                 if (HARMONIC_CONTEXT_METHOD == 'l2eo')
-                    dist = this.effectiveOrigin.harmonicDistance(candidate);
+                    dist = this.effectiveOrigin.harmonicDistance(abs);
                 else if (HARMONIC_CONTEXT_METHOD == 'l2')
-                    dist = this.#avgHc.harmonicDistance(candidate);
+                    dist = this.#avgHc.harmonicDistance(abs);
                 
                 if (dist < minDist) {
                     minDist = dist;
-                    newAbsRatio = candidate;
+                    newAbsRatio = abs;
+                    _pitch = pitch;
+                    _rel = rel;
                 }
             }
+
+            console.log(
+                `Choosing ${_rel.toRatioString()} of ${_pitch.stepsFromA}\\22 (${_pitch.absoluteRatio.toRatioString()}) = ${newAbsRatio.toRatioString()}`);
+
             existingPitch = this.getPitchByHarmCoords(newAbsRatio);
 
             if (!existingPitch) {
@@ -328,6 +351,8 @@ export class HarmonicContext {
             } else {
                 // If this note is existing already, refresh its countdown timer.
                 existingPitch.noteOnTime = new Date();
+
+                // console.log('reuse', existingPitch.absoluteRatio.toRatio());
             }
 
             // If max STM notes exceeded, remove the oldest note.
@@ -344,7 +369,7 @@ export class HarmonicContext {
         
         // 3. If the new pitch clashes with any pitch by 1 edostep, remove the old pitch from STM.
 
-        for (let i = 0; i < this.shortTermMemory.length; i++) {
+        for (let i = 0; i < this.shortTermMemory.length - 1; i++) {
             if (Math.abs(this.shortTermMemory[i].stepsFromA - stepsFromA) === 1) {
                 this.shortTermMemory.splice(i, 1);
                 i --;
@@ -502,6 +527,15 @@ export class HarmonicContext {
 
     relativeToEffectiveOrigin(absoluteCoords) {
         return absoluteCoords.subtract(this.#effectiveOrigin);
+    }
+
+    /**
+     * veh nai.
+     * 
+     * @returns a very cool display string
+     */
+    toVeryNiceDisplayString() {
+        return this.shortTermMemory.map(x => x.stepsFromA.toString().padStart(4, '\xa0') + ' ' + x.absoluteRatio.toMonzoString()).reverse().join('\n');
     }
 
     // in the event the HarmonicCoordinates get out of hand or something...

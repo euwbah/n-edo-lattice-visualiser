@@ -88,7 +88,7 @@ export const NON_CHORD_TONE_SIZE_EFFECT = 0.75;
  */
 export const BALL_SUSTAIN_SCALE_FACTOR = 0.04;
 
-export const RESET_TIME_SECS = 2;
+export const RESET_TIME_SECS = 3;
 
 /**
  * The minimum duration (in seconds) between changes in effectiveOrigin.

@@ -143,6 +143,11 @@ export class HarmonicCoordinates {
         return [num, den]
     }
 
+    toRatioString() {
+        let [num, den] = this.toRatio();
+        return `${num}/${den}`;
+    }
+
     toUnscaledCoords() {
         return [
             DIST_SCALE_FACTOR_3D * (this.p2 * P2_3d_X + this.p3 * P3_3d_X + this.p5 * P5_3d_X + this.p7 * P7_3d_X + this.p11 * P11_3d_X),
@@ -385,7 +390,7 @@ const RATIOS22 = {
         [6, 5], [11, 9]
     ]),
     7: arrayOfHarmonicCoordinates([
-        [5/4], //[96, 77]
+        [5, 4], //[96, 77]
     ]),
     // Mi
     8: arrayOfHarmonicCoordinates([
@@ -399,12 +404,10 @@ const RATIOS22 = {
         [11, 8], [15, 11]
     ]),
     11: arrayOfHarmonicCoordinates([
-        // Disclaimer: 45/32 is not technically in the val map/generated, 
-        // but functionally it could be used as such.
         [7, 5], [10, 7], [45, 32]
     ]),
     12: arrayOfHarmonicCoordinates([
-        [16,11], [22,16]
+        [16,11], [22,15]
     ]),
     // So
     13: arrayOfHarmonicCoordinates([
@@ -460,6 +463,12 @@ export function convertStepsToPossibleCoord(steps) {
 
 /**
  * A key-value-pair mapping edosteps to number of fifths spanned.
+ * 
+ * This only works for edos where the fifth is a generator for the whole tuning.
+ * 
+ * E.g. in 24 it won't work because there are 2 disjoint circles of fifths...
+ * 
+ * This should be used for COSMETIC purposes only (like setting color hue based on fifths)
  */
 export const EDOSTEPS_TO_FIFTHS_MAP = (() => {
     let x = {};
