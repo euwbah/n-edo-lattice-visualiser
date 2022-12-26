@@ -5,6 +5,8 @@ import { HarmonicContext } from "./harmonic-context.js";
 import { ScaffoldingManager, BallsManager } from "./drawn-objects.js";
 
 /**
+ * KVP of [stepsFromA, {@link KeyState}]
+ * 
  * @type {Object.<number, KeyState>}
  */
 export let KEYS_STATE = {};

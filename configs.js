@@ -51,12 +51,27 @@ export const MAX_NEW_NOTES_BEFORE_FORGET = 6;
 
 /**
  * The maximum time a note in the HarmonicContext can go without being
- * played and still be remembered.
+ * played (nor sustained by pedal) and still be remembered.
+ * 
+ * Notes that are still held down (not by sustain ped.) will not be forgotten
+ * by virtue of time delay.
  *
  * In the same spirit as `MAX_NEW_NOTES_BEFORE_FORGET`
+ * 
  * @type {number}
  */
-export const MAX_DURATION_BEFORE_FORGET_SECS = 12;
+export const MAX_DURATION_BEFORE_FORGET_SECS = 8;
+
+/**
+ * The maximum time a note in the HarmonicContext can exist in STM 
+ * without being played, but sustained by pedal.
+ * 
+ * Notes that are still held down (not by sustain ped.) will not be forgotten
+ * by virtue of time delay.
+ * 
+ * @type {number}
+ */
+export const MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED = 15;
 
 /**
  * below the tolerable dissonance score, there will be no fatigue accumulated

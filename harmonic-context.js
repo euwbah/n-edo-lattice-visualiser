@@ -1,5 +1,6 @@
-import { CONSONANCE_THRESHOLD, EDO, FASTEST_KEY_CHANGE_SECS, HARMONIC_CONTEXT_METHOD, HIGHEST_REL_P2_DENOM, HIGHEST_REL_P3_DENOM, MAX_DISSONANCE, MAX_DURATION_BEFORE_FORGET_SECS, MAX_FATIGUE_SECS, MAX_HARMONIC_DISTANCE, MAX_NEW_NOTES_BEFORE_FORGET, MAX_SHORT_TERM_MEMORY } from "./configs.js";
+import { CONSONANCE_THRESHOLD, EDO, FASTEST_KEY_CHANGE_SECS, HARMONIC_CONTEXT_METHOD, HIGHEST_REL_P2_DENOM, HIGHEST_REL_P3_DENOM, MAX_DISSONANCE, MAX_DURATION_BEFORE_FORGET_SECS, MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED, MAX_FATIGUE_SECS, MAX_HARMONIC_DISTANCE, MAX_NEW_NOTES_BEFORE_FORGET, MAX_SHORT_TERM_MEMORY } from "./configs.js";
 import { EDOSTEPS_TO_FIFTHS_MAP, HarmonicCoordinates, convertStepsToPossibleCoord } from "./just-intonation.js";
+import { KEYS_STATE } from "./note-tracking.js";
 
 export class Pitch {
     /**
@@ -159,11 +160,14 @@ export class HarmonicContext {
 
         this.#tonalCenterUnscaledCoords = this.#avgHc.toUnscaledCoords();
 
-        // Remove notes that are played too long ago/forgotten.
         let now = new Date();
         for (let i = 0; i < this.shortTermMemory.length; i++) {
             let p = this.shortTermMemory[i];
-            if (now - p.noteOnTime > MAX_DURATION_BEFORE_FORGET_SECS * 1000) {
+            let keystate = KEYS_STATE[p.stepsFromA]; // use this to determine whether/when forgetting should occur.
+            if ((!keystate 
+                    && now - p.noteOnTime > MAX_DURATION_BEFORE_FORGET_SECS * 1000) 
+                || (keystate && keystate.fromSustainPedal 
+                    && now - p.noteOnTime > MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED * 1000)) {
                 this.shortTermMemory.splice(i, 1);
                 i --;
             }
