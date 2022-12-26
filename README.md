@@ -1,11 +1,11 @@
-# 11-limit lattice visualizer for 31 edo
+# 11-limit lattice visualizer for 22/31edo
 
 ![img.png](img.png)
 
 ## How to use
 
 Works right out of the box with https://github.com/euwbah/microtonal-seaboard.
-Simply run the microtonal-seaboard application, then open https://euwbah.github.io/31edo-lattice-visualiser/.
+Simply run the microtonal-seaboard application, then open https://euwbah.github.io/n-edo-lattice-visualiser/.
 
 ## What is happening?
 
