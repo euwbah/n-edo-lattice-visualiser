@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { HarmonicContext } from './harmonic-context.js';
 import * as NoteTracking from './note-tracking.js';
 import { BallsManager, Camera, KeyCenterParticleFountain, ScaffoldingManager } from './drawn-objects.js';
-import { HELD_NOTE_HAPPENINGNESS, MAX_SHORT_TERM_MEMORY, SUSTAINED_NOTE_HAPPENINGNESS, VERSION, addHappeningness } from './configs.js';
+import { HELD_NOTE_HAPPENINGNESS, MAX_SHORT_TERM_MEMORY, SCULPTURE_MODE, SCULPTURE_PX_DENSITY, SUSTAINED_NOTE_HAPPENINGNESS, VERSION, addHappeningness } from './configs.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DebugEnvironment } from 'three/addons/environments/DebugEnvironment.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -10,6 +10,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SSRPass } from 'three/addons/postprocessing/SSRPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { Sculpture } from './sculpture.js';
 
 /**
  * @type {THREE.Scene}
@@ -36,12 +37,14 @@ const renderer = new THREE.WebGLRenderer({
     powerPreference: 'high-performance',
 });
 
+let pxDensity = window.devicePixelRatio * SCULPTURE_MODE ? SCULPTURE_PX_DENSITY : 1;
+
 renderer.autoClear = true;
 renderer.physicallyCorrectLights = true;
 renderer.toneMapping = THREE.ReinhardToneMapping;
 renderer.toneMappingExposure = 1;
 
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth * pxDensity, window.innerHeight * pxDensity, false);
 document.body.appendChild(renderer.domElement);
 
 // setting up stuff for postprocessing
@@ -103,7 +106,7 @@ socket.onopen = (e) => {
 
 window.addEventListener('resize', () => {
     cameraObject.updateAspectRatio();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(window.innerWidth * pxDensity, window.innerHeight * pxDensity, false);
 }, false);
 
 let clock = new THREE.Clock();
@@ -120,39 +123,70 @@ let envTexTarget = pmremgen.fromScene(envScene);
 scene.environment = envTexTarget.texture;
 // scene.background = envTexTarget.texture;
 
+/**
+ * @type {Sculpture}
+ */
+let sculpture = null;
+
+if (SCULPTURE_MODE) {
+    fetch('./recording.json')
+        .then(response => response.json())
+        .then(json => {
+            sculpture = new Sculpture(json);
+            window.sculpture = sculpture;
+        });
+}
+
+
 function animate() {
     requestAnimationFrame(animate);
     window.deltaTime = clock.getDelta() * 1000;
 
-    let [held, sustained] = NoteTracking.countExistingKeysState();
-    addHappeningness(deltaTime / 4000 * (held * HELD_NOTE_HAPPENINGNESS + sustained * SUSTAINED_NOTE_HAPPENINGNESS));
-    HAPPENINGNESS = Math.max(0, HAPPENINGNESS - Math.pow(HAPPENINGNESS, 1.5) * deltaTime / 1500);
+    if (SCULPTURE_MODE) {
+        cameraObject.tick(0);
 
-    harmonicContext.tick();
-    ballManager.tick(NoteTracking.KEYS_STATE, harmonicContext);
-    particleFountain.tick(harmonicContext);
-    scaffoldingManager.tick();
-    cameraObject.tick(ballManager.stdDeviation);
+        if (!sculpture) return; // wait for sculpture/json to load
 
-    // Update shader settings
-    renderer.toneMappingExposure = 1.1 + HAPPENINGNESS * 0.3;
-    bloomPass.threshold = 0;
-    bloomPass.strength = 0.1 + Math.pow(HAPPENINGNESS, 4) * 3;
-    bloomPass.radius = 0.01 + 0.03 * Math.pow(HAPPENINGNESS, 4);
-    blurPass.uniforms['maxblur'].value = 0.2 * Math.pow(HAPPENINGNESS, 4);
+        cameraObject.center.copy(sculpture.centroid);
+        sculpture.tick();
+        renderer.toneMappingExposure = 1.2;
+        bloomPass.threshold = 0;
+        bloomPass.strength = 1.4;
+        bloomPass.radius = 0.05;
+        blurPass.uniforms['maxblur'].value = 0.1;
 
-    composer.render();
-    document.getElementById('text').innerText = 
-        `
-        ${VERSION}    ${(1000/deltaTime).toFixed(0)} fps
-        center: ${cameraObject.center.x.toFixed(1)}, ${cameraObject.center.y.toFixed(1)}, ${cameraObject.center.z.toFixed(1)}, rot: ${cameraObject.theta.toFixed(2)}, ${cameraObject.phi.toFixed(2)}, dist: ${cameraObject.dist.toFixed(0)}
-        b: ${ballManager.numBallsAlive}/${ballManager.numBallObjects}, part: ${particleFountain.numParticles}
-        hap: ${HAPPENINGNESS.toFixed(3)}, std: ${ballManager.stdDeviation.toFixed(1)}
-        stm: ${harmonicContext.shortTermMemory.length} / ${MAX_SHORT_TERM_MEMORY}, dis: ${harmonicContext.dissonance.toFixed(1)}
-        ${harmonicContext.effectiveOrigin.toMonzoString()}
+        composer.render();
+    } else {
+        let [held, sustained] = NoteTracking.countExistingKeysState();
+        addHappeningness(deltaTime / 4000 * (held * HELD_NOTE_HAPPENINGNESS + sustained * SUSTAINED_NOTE_HAPPENINGNESS));
+        HAPPENINGNESS = Math.max(0, HAPPENINGNESS - Math.pow(HAPPENINGNESS, 1.5) * deltaTime / 1500);
+        
+        harmonicContext.tick();
+        ballManager.tick(NoteTracking.KEYS_STATE, harmonicContext);
+        particleFountain.tick(harmonicContext);
+        scaffoldingManager.tick();
+        cameraObject.tick(ballManager.stdDeviation);
+        
+        // Update shader settings
+        renderer.toneMappingExposure = 1.1 + HAPPENINGNESS * 0.3;
+        bloomPass.threshold = 0;
+        bloomPass.strength = 0.1 + Math.pow(HAPPENINGNESS, 4) * 3;
+        bloomPass.radius = 0.01 + 0.03 * Math.pow(HAPPENINGNESS, 4);
+        blurPass.uniforms['maxblur'].value = 0.2 * Math.pow(HAPPENINGNESS, 4);
 
-        ${harmonicContext.toVeryNiceDisplayString()}
-        `.trim();
+        composer.render();
+        document.getElementById('text').innerText = 
+            `
+            ${VERSION}    ${(1000/deltaTime).toFixed(0)} fps
+            center: ${cameraObject.center.x.toFixed(1)}, ${cameraObject.center.y.toFixed(1)}, ${cameraObject.center.z.toFixed(1)}, rot: ${cameraObject.theta.toFixed(2)}, ${cameraObject.phi.toFixed(2)}, dist: ${cameraObject.dist.toFixed(0)}
+            b: ${ballManager.numBallsAlive}/${ballManager.numBallObjects}, part: ${particleFountain.numParticles}
+            hap: ${HAPPENINGNESS.toFixed(3)}, std: ${ballManager.stdDeviation.toFixed(1)}
+            stm: ${harmonicContext.shortTermMemory.length} / ${MAX_SHORT_TERM_MEMORY}, dis: ${harmonicContext.dissonance.toFixed(1)}
+            ${harmonicContext.effectiveOrigin.toMonzoString()}
+
+            ${harmonicContext.toVeryNiceDisplayString()}
+            `.trim();
+    }
     
 }
 

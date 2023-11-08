@@ -16,8 +16,8 @@ export const SCAFFOLDING_SPACE_RATIO = 0.05;
 
 // Set range of hues of the color wheel (in degrees) to assign
 // to the notes according to the circle of fifths.
-export const MIN_FIFTH_HUE = 0;
-export const MAX_FIFTH_HUE = 1;
+export const MIN_FIFTH_HUE = 0.75;
+export const MAX_FIFTH_HUE = 0.28;
 
 export const OCTAVES_COLOR = new Color('hsl(210, 7%, 60%)');
 export const FIFTHS_COLOR = new Color('hsl(40, 60%, 65%)');
@@ -145,6 +145,30 @@ export const TEXT_SIZE = 8;
 export const PROJECTION_TYPE = '3d';
 
 /**
+ * Set to true to run in sculpture mode.
+ * 
+ * In sculpture mode, the ./recording.json file is read and rendered into an
+ * animated sculpture of the entire playback of the song.
+ */
+export const SCULPTURE_MODE = true;
+export const SCULPTURE_PX_DENSITY = 2;
+export const SCULPTURE_BALL_SIZE = 10;
+/**
+ * How long each animation cycle is in seconds.
+ */
+export const SCULPTURE_CYCLE_DURATION = 60;
+export const SCULPTURE_CAM_DIST = 500;
+/**
+ * How many cycles to rotate camera back to starting position.
+ */
+export const SCULPTURE_CAM_THETA_CYCLES = 3;
+export const SCULPTURE_CAM_PHI_CYCLES = 2;
+/**
+ * The fraction of lastBallTimeOn to delay each cycle by. (Add more delay to make a 'swoosh' effect)
+ */
+export const SCULPTURE_CYCLE_DELAY = 1.6;
+
+/**
  * Camera config for 3D
  * 
  * In 3D, zoom settings are based on standard deviation of ball positions
@@ -156,7 +180,7 @@ export const CAM_ROT_SPEED = 1.5;
 export const MAX_CAM_ROT_SPEED = 1.57;
 export const CAM_ROT_ACCEL = 0.01;
 export const MIN_CAM_DIST = 70;
-export const MAX_CAM_DIST = 900;
+export const MAX_CAM_DIST = 400;
 export const CAM_DIST_HAPPENINGNESS = 110;
 export const DIST_STD_DEV_RATIO = 2.5; // Each unit std dev will yield add this much cam distance
 export const DIST_CHANGE_SPEED = 0.4;

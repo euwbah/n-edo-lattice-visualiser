@@ -332,8 +332,8 @@ export class HarmonicContext {
                 }
             }
 
-            console.log(
-                `Choosing ${_rel.toRatioString()} of ${_pitch.stepsFromA}\\22 (${_pitch.absoluteRatio.toRatioString()}) = ${newAbsRatio.toRatioString()}`);
+            // console.log(
+            //     `Choosing ${_rel.toRatioString()} of ${_pitch.stepsFromA}\\22 (${_pitch.absoluteRatio.toRatioString()}) = ${newAbsRatio.toRatioString()}`);
 
             existingPitch = this.getPitchByHarmCoords(newAbsRatio);
 

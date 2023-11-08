@@ -3,6 +3,8 @@
 import { NOTE_ON_HAPPENINGNESS, RESET_TIME_SECS, addHappeningness } from "./configs.js";
 import { HarmonicContext } from "./harmonic-context.js";
 import { ScaffoldingManager, BallsManager } from "./drawn-objects.js";
+import { HarmonicCoordinates } from "./just-intonation.js";
+import { IS_RECORDING, RECORDED_NOTES, RecNote } from "./recording.js";
 
 /**
  * KVP of [stepsFromA, {@link KeyState}]
@@ -36,6 +38,13 @@ export function countExistingKeysState() {
 }
 
 /**
+ * Stores the epoch time (ms) of the first note of the recording.
+ * 
+ * @type {number}
+ */
+let recStartTime = 0;
+
+/**
  *
  * @param {number} stepsFromA
  * @param {number} vel
@@ -44,7 +53,7 @@ export function countExistingKeysState() {
  * @param {ScaffoldingManager} scaffoldingManager
  */
 export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManager) {
-    console.log('received note on: ', stepsFromA, vel);
+    // console.log('received note on: ', stepsFromA, vel);
     addHappeningness(NOTE_ON_HAPPENINGNESS * Math.pow(vel/127, 1.5) + 0.002);
     if (clearHarmonicContextTimeoutID !== null) {
         clearTimeout(clearHarmonicContextTimeoutID);
@@ -56,10 +65,24 @@ export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldin
     if (fromPitch === null) {
         // the harmonic context is fresh.
         ballManager.noteOn(relativeRatio, stepsFromA, vel);
+
+        if (IS_RECORDING) {
+            if (RECORDED_NOTES.length === 0) {
+                recStartTime = Date.now();
+            }
+            RECORDED_NOTES.push(new RecNote(Date.now() - recStartTime, stepsFromA, relativeRatio));
+        }
     } else {
         let absoluteRatio = fromPitch.absoluteRatio.add(relativeRatio); // the absolute interval of new ball
         let newBall = ballManager.noteOn(absoluteRatio, stepsFromA, vel);
         scaffoldingManager.create(fromPitch.absoluteRatio, newBall);
+
+        if (IS_RECORDING) {
+            if (RECORDED_NOTES.length === 0) {
+                recStartTime = Date.now();
+            }
+            RECORDED_NOTES.push(new RecNote(Date.now() - recStartTime, stepsFromA, absoluteRatio));
+        }
     }
 }
 

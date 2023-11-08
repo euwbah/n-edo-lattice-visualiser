@@ -55,6 +55,25 @@ export class HarmonicCoordinates {
         this.#p11 = p11;
     }
 
+    /**
+     * Construct a new {@link HarmonicCoordinates} object from JSON.
+     * 
+     * @param {{p2: number, p3: number, p5: number, p7: number, p11: number}} json 
+     */
+    static fromJSON(json) {
+        return new HarmonicCoordinates(json.p2, json.p3, json.p5, json.p7, json.p11);
+    }
+
+    toJSON() {
+        return {
+            p2: this.#p2,
+            p3: this.#p3,
+            p5: this.#p5,
+            p7: this.#p7,
+            p11: this.#p11
+        };
+    }
+
     get p2() { return this.#p2; }
 
     /**

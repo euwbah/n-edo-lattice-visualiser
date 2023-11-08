@@ -1,5 +1,5 @@
 import { Text } from "troika-three-text";
-import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, DIST_CHANGE_SPEED, DIST_STD_DEV_RATIO, EDO, FIFTHS_COLOR, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR } from "./configs.js";
+import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, DIST_CHANGE_SPEED, DIST_STD_DEV_RATIO, EDO, FIFTHS_COLOR, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SCULPTURE_CAM_DIST, SCULPTURE_CAM_PHI_CYCLES, SCULPTURE_CAM_THETA_CYCLES, SCULPTURE_CYCLE_DURATION, SCULPTURE_MODE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR } from "./configs.js";
 import { HarmonicContext } from "./harmonic-context.js";
 import { EDOSTEPS_TO_FIFTHS_MAP, HarmonicCoordinates } from "./just-intonation.js";
 import * as THREE from "three";
@@ -93,7 +93,11 @@ export class Camera {
 
     constructor(harmonicContext) {
         this.#harmonicContext = harmonicContext;
-        this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+        this.camera = new THREE.PerspectiveCamera(
+            SCULPTURE_MODE ? 75 : 50, 
+            window.innerWidth / window.innerHeight, 
+            1, 
+            SCULPTURE_MODE ? 10000 : 1000);
         this.pointLight = new THREE.PointLight(0xffffff, 0, 0, 1.4);
         scene.add(this.pointLight);
     }
@@ -112,15 +116,17 @@ export class Camera {
      * @param {number} stdDeviation The stdDeviation of the {@link BallsManager}
      */
     tick(stdDeviation) {
-        [this.targetCenter.x, this.targetCenter.y, this.targetCenter.z] = this.#harmonicContext.tonalCenterUnscaledCoords;
         let dt = deltaTime > 1000 ? 1000 : deltaTime;
-        this.center.x += (this.targetCenter.x - this.center.x) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-        this.center.y += (this.targetCenter.y - this.center.y) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-        this.center.z += (this.targetCenter.z - this.center.z) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-        
-        this.distTarget = MIN_CAM_DIST + stdDeviation * DIST_STD_DEV_RATIO + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS;
-        this.distTarget = Math.max(MIN_CAM_DIST, Math.min(MAX_CAM_DIST, this.distTarget));
-        this.dist += (this.distTarget - this.dist) * dt / 1000 * DIST_CHANGE_SPEED;
+        if (!SCULPTURE_MODE) {
+            [this.targetCenter.x, this.targetCenter.y, this.targetCenter.z] = this.#harmonicContext.tonalCenterUnscaledCoords;
+            this.center.x += (this.targetCenter.x - this.center.x) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+            this.center.y += (this.targetCenter.y - this.center.y) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+            this.center.z += (this.targetCenter.z - this.center.z) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+            
+            this.distTarget = MIN_CAM_DIST + stdDeviation * DIST_STD_DEV_RATIO + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS;
+            this.distTarget = Math.max(MIN_CAM_DIST, Math.min(MAX_CAM_DIST, this.distTarget));
+            this.dist += (this.distTarget - this.dist) * dt / 1000 * DIST_CHANGE_SPEED;
+        }
 
         // Calculate where the camera actually is positioned.
         let camX = this.center.x + this.dist * Math.sin(this.phi) * Math.cos(this.theta);
@@ -130,26 +136,36 @@ export class Camera {
         this.camera.position.copy(camPosVec);
         this.camera.lookAt(this.center);
 
-        // Calculate how to rotate depending on whether the target is left or right of
-        // the current center point. (If left, rotate CCW, if right, rotate CW)
-        let camToCenter = new THREE.Vector3().subVectors(this.center, camPosVec);
-        let targetToCenter = new THREE.Vector3().subVectors(this.center, this.targetCenter);
-        let cross = camToCenter.cross(targetToCenter);
-        let crossDivNormalized = cross.dot(cross.clone().normalize()) * cross.y >= 0 ? 1 : -1;
+        if (!SCULPTURE_MODE) {
+            // Calculate how to rotate depending on whether the target is left or right of
+            // the current center point. (If left, rotate CCW, if right, rotate CW)
+            let camToCenter = new THREE.Vector3().subVectors(this.center, camPosVec);
+            let targetToCenter = new THREE.Vector3().subVectors(this.center, this.targetCenter);
+            let cross = camToCenter.cross(targetToCenter);
+            let crossDivNormalized = cross.dot(cross.clone().normalize()) * cross.y >= 0 ? 1 : -1;
 
-        // Rotation speed in radians per second
-        let targetRotSpd = HAPPENINGNESS * crossDivNormalized * CAM_ROT_SPEED;
-        targetRotSpd = Math.min(MAX_CAM_ROT_SPEED, Math.abs(targetRotSpd)) * Math.sign(targetRotSpd);
+            // Rotation speed in radians per second
+            let targetRotSpd = HAPPENINGNESS * crossDivNormalized * CAM_ROT_SPEED;
+            targetRotSpd = Math.min(MAX_CAM_ROT_SPEED, Math.abs(targetRotSpd)) * Math.sign(targetRotSpd);
 
-        this.dTheta = CAM_ROT_ACCEL * targetRotSpd + (1 - CAM_ROT_ACCEL) * this.dTheta;
-
-        this.theta += dt / 1000 * this.dTheta;
-        if (this.theta > 2 * Math.PI) this.theta -= 2 * Math.PI;
-
-        this.phi = 0.97 * this.phi + 0.03 * Math.PI * (0.65 - Math.pow(HAPPENINGNESS, 0.7) * 0.25);
-
-        this.pointLight.position.set(camX, camY + 50, camZ);
-        this.pointLight.intensity = 30 + 90 * (HAPPENINGNESS);
+            this.dTheta = CAM_ROT_ACCEL * targetRotSpd + (1 - CAM_ROT_ACCEL) * this.dTheta;
+            
+            this.theta += dt / 1000 * this.dTheta;
+            if (this.theta > 2 * Math.PI) this.theta -= 2 * Math.PI;
+            
+            this.phi = 0.97 * this.phi + 0.03 * Math.PI * (0.65 - Math.pow(HAPPENINGNESS, 0.7) * 0.25);
+            
+            this.pointLight.position.set(camX, camY + 50, camZ);
+            this.pointLight.intensity = 30 + 90 * (HAPPENINGNESS);
+        } else {
+            // In sculpture mode, the camera rotates theta once per N animation cycles.
+            let currTime = Date.now();
+            this.theta = (currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_THETA_CYCLES) % 1) * 2 * Math.PI;
+            this.phi = Math.PI * (0.5 + Math.sin(currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_PHI_CYCLES) % 1 * 2 * Math.PI) * 0.1);
+            this.dist = SCULPTURE_CAM_DIST + 50 * Math.sin(currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_THETA_CYCLES) % 1 * 2 * Math.PI);
+            this.pointLight.position.set(camX, camY, camZ);
+            this.pointLight.intensity = 130;
+        }
     }
 }
 
@@ -250,7 +266,7 @@ export class Ball {
             roughness: 0.3,
             opacity: this.isDebug ? 0.4 : this.opacity,
             transparent: true,
-            side: THREE.TwoPassDoubleSide,
+            side: THREE.DoubleSide,
         });
         this.#sphereMesh = new THREE.Mesh(this.#geometry, this.#material);
         this.updateDrawing();
