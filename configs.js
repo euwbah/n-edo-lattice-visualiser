@@ -264,10 +264,11 @@ export const CAM_SPEED_HAPPENINGNESS = 3.8;
 export const CAM_ROT_SPEED = 1.5;
 export const MAX_CAM_ROT_SPEED = 1.57;
 export const CAM_ROT_ACCEL = 0.01;
-export const MIN_CAM_DIST = 30;
-export const MAX_CAM_DIST = 420;
+export const MIN_CAM_DIST = 80;
+export const MAX_CAM_DIST = 500;
 export const CAM_DIST_HAPPENINGNESS = 110;
-export const DIST_STD_DEV_RATIO = 7.0; // Each unit std dev will yield add this much cam distance
+export const DIST_STD_DEV_RATIO = 0.116; // Affects standard deviation exponential multiplier
+export const DIST_STD_DEV_CONST = 0.5; // Constant added to std dev inside exponential multiplier
 export const DIST_CHANGE_SPEED = 0.4;
 
 /**==
