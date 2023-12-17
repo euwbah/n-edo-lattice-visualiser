@@ -7,8 +7,8 @@ import { HarmonicCoordinates } from "./just-intonation.js";
 import { IS_RECORDING, RECORDED_NOTES, RecNote } from "./recording.js";
 
 /**
- * KVP of [stepsFromA, {@link KeyState}]
- * 
+ * KVP of [stepsFromA, {@linkcode KeyState}]
+ *
  * @type {Object.<number, KeyState>}
  */
 export let KEYS_STATE = {};
@@ -39,7 +39,7 @@ export function countExistingKeysState() {
 
 /**
  * Stores the epoch time (ms) of the first note of the recording.
- * 
+ *
  * @type {number}
  */
 let recStartTime = 0;
@@ -51,8 +51,10 @@ let recStartTime = 0;
  * @param {HarmonicContext} harmonicContext
  * @param {BallsManager} ballManager
  * @param {ScaffoldingManager} scaffoldingManager
+ * @param {number[]?} explicitCoords When {@linkcode HARMONIC_CONTEXT_METHOD} is `12ji`, this array is used as the
+ * explicit JI coordinates for the new ball. This should be `null`/unspecified if not in `12ji` mode.
  */
-export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManager) {
+export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldingManager, explicitCoords = null) {
     // console.log('received note on: ', stepsFromA, vel);
     addHappeningness(NOTE_ON_HAPPENINGNESS * Math.pow(vel/127, 1.5) + 0.002);
     if (clearHarmonicContextTimeoutID !== null) {
@@ -61,7 +63,7 @@ export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldin
     }
     KEYS_STATE[stepsFromA] = new KeyState(stepsFromA, vel);
 
-    let [fromPitch, relativeRatio] = harmonicContext.registerNote(stepsFromA);
+    let [fromPitch, relativeRatio] = harmonicContext.registerNote(stepsFromA, explicitCoords);
     if (fromPitch === null) {
         // the harmonic context is fresh.
         ballManager.noteOn(relativeRatio, stepsFromA, vel);
@@ -86,7 +88,7 @@ export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldin
     }
 }
 
-export function startKeyCenterResetTimer() {
+export function startOriginResetTimer() {
     if (Object.keys(KEYS_STATE).length === 0 && clearHarmonicContextTimeoutID === null) {
         clearHarmonicContextTimeoutID = setTimeout(() => {
             harmonicContext.reset();
@@ -103,13 +105,26 @@ export function noteOff(stepsFromA, vel) {
         delete KEYS_STATE[stepsFromA];
     }
 
-    startKeyCenterResetTimer();
+    startOriginResetTimer();
 }
+
+export function offAll() {
+    if (clearHarmonicContextTimeoutID !== null) {
+        clearTimeout(clearHarmonicContextTimeoutID);
+        clearHarmonicContextTimeoutID = null;
+    }
+    KEYS_STATE = {};
+    harmonicContext.reset();
+}
+
+window.offAll = offAll;
 
 export function cc(cc, value) {
     // console.log('received cc: ', cc, value);
     if (cc === 64) {
-        SUSTAIN_STATE = value >= 64;
+        // for expensive sustain pedals, sustain ranges from 0 to 127 (half pedalling is a thing)
+        // make sure that the threshold below is appropriate.
+        SUSTAIN_STATE = value >= 70;
         if (!SUSTAIN_STATE) {
             let sustainedNotes = Object.entries(KEYS_STATE).filter(
                 ([_,keyState]) => keyState.fromSustainPedal
@@ -118,7 +133,7 @@ export function cc(cc, value) {
             for (let x of sustainedNotes) {
                 delete KEYS_STATE[x];
             }
-            startKeyCenterResetTimer();
+            startOriginResetTimer();
         }
     }
 }

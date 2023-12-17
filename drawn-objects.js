@@ -1,12 +1,12 @@
 import { Text } from "troika-three-text";
-import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, DIST_CHANGE_SPEED, DIST_STD_DEV_RATIO, EDO, FIFTHS_COLOR, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SCULPTURE_CAM_DIST, SCULPTURE_CAM_PHI_CYCLES, SCULPTURE_CAM_THETA_CYCLES, SCULPTURE_CYCLE_DURATION, SCULPTURE_MODE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR } from "./configs.js";
+import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, DIST_CHANGE_SPEED, DIST_STD_DEV_RATIO, EDO, FIFTHS_COLOR, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, JI_COLORS, LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SCULPTURE_CAM_DIST, SCULPTURE_CAM_PHI_CYCLES, SCULPTURE_CAM_THETA_CYCLES, SCULPTURE_CYCLE_DURATION, SCULPTURE_MODE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR } from "./configs.js";
 import { HarmonicContext } from "./harmonic-context.js";
 import { EDOSTEPS_TO_FIFTHS_MAP, HarmonicCoordinates } from "./just-intonation.js";
 import * as THREE from "three";
 
 /**
- * Adds jitter to a vector based on {@link HAPPENINGNESS}
- * 
+ * Adds jitter to a vector based on {@linkcode HAPPENINGNESS}
+ *
  * @param {THREE.Vector3} vec Input vector.
  * @returns {THREE.Vector3} A new vector with jitter applied.
  */
@@ -17,21 +17,21 @@ function addJitter(vec) {
 
 /**
  * Wrapper around THREE's camera.
- * 
+ *
  * In 3D, camera always points at centerX/Y/Z and is located in terms of
  * spherical coordinates (radius, theta, phi) about the center point.
  */
 export class Camera {
     /**
      * Three JS camera instance
-     * 
+     *
      * @type {THREE.Camera}
      */
     camera;
 
-    /** 
+    /**
      * center represents 3D coords of tonal center
-     * 
+     *
      * @type {THREE.Vector3}
      */
     targetCenter = new THREE.Vector3();
@@ -42,15 +42,15 @@ export class Camera {
 
     /**
      * @type {number}
-     * 
+     *
      * The rotation of the camera about the center point along the X-Z plane. (circling the Y axis)
      * For 3D.
-     * 
+     *
      * 0: right of center
      * PI/2: in front of center
      * PI: left of center
      * 3PI/2: behind center
-     * 
+     *
      * x = radius * sin(phi) * cos(theta)
      * z = radius * sin(phi) * sin(theta)
      */
@@ -58,21 +58,21 @@ export class Camera {
 
     /**
      * Stores current yaw rotation speed
-     * 
+     *
      * @type {number}
      */
     dTheta = 0;
 
     /**
      * @type {number}
-     * 
+     *
      * The Y rotation of the camera about the center point after applying theta rotation.
      * For 3D.
-     * 
+     *
      * 0: directly above center
      * PI/2: center
      * PI: directly below center
-     * 
+     *
      * y = radius * cos(phi)
      */
     phi = Math.PI * 0.65; // start under center point
@@ -94,9 +94,9 @@ export class Camera {
     constructor(harmonicContext) {
         this.#harmonicContext = harmonicContext;
         this.camera = new THREE.PerspectiveCamera(
-            SCULPTURE_MODE ? 75 : 50, 
-            window.innerWidth / window.innerHeight, 
-            1, 
+            SCULPTURE_MODE ? 75 : 50,
+            window.innerWidth / window.innerHeight,
+            1,
             SCULPTURE_MODE ? 10000 : 1000);
         this.pointLight = new THREE.PointLight(0xffffff, 0, 0, 1.4);
         scene.add(this.pointLight);
@@ -112,8 +112,8 @@ export class Camera {
 
     /**
      * Update the camera's position.
-     * 
-     * @param {number} stdDeviation The stdDeviation of the {@link BallsManager}
+     *
+     * @param {number} stdDeviation The stdDeviation of the {@linkcode BallsManager}
      */
     tick(stdDeviation) {
         let dt = deltaTime > 1000 ? 1000 : deltaTime;
@@ -122,7 +122,7 @@ export class Camera {
             this.center.x += (this.targetCenter.x - this.center.x) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
             this.center.y += (this.targetCenter.y - this.center.y) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
             this.center.z += (this.targetCenter.z - this.center.z) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-            
+
             this.distTarget = MIN_CAM_DIST + stdDeviation * DIST_STD_DEV_RATIO + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS;
             this.distTarget = Math.max(MIN_CAM_DIST, Math.min(MAX_CAM_DIST, this.distTarget));
             this.dist += (this.distTarget - this.dist) * dt / 1000 * DIST_CHANGE_SPEED;
@@ -149,12 +149,12 @@ export class Camera {
             targetRotSpd = Math.min(MAX_CAM_ROT_SPEED, Math.abs(targetRotSpd)) * Math.sign(targetRotSpd);
 
             this.dTheta = CAM_ROT_ACCEL * targetRotSpd + (1 - CAM_ROT_ACCEL) * this.dTheta;
-            
+
             this.theta += dt / 1000 * this.dTheta;
             if (this.theta > 2 * Math.PI) this.theta -= 2 * Math.PI;
-            
+
             this.phi = 0.97 * this.phi + 0.03 * Math.PI * (0.65 - Math.pow(HAPPENINGNESS, 0.7) * 0.25);
-            
+
             this.pointLight.position.set(camX, camY + 50, camZ);
             this.pointLight.intensity = 30 + 90 * (HAPPENINGNESS);
         } else {
@@ -172,19 +172,21 @@ export class Camera {
 export class Ball {
     /**
      * Absolute harmonic coordinates
-     * 
+     *
      * @type {HarmonicCoordinates}
      */
     harmCoords;
     /**
      * Harmonic coordinates relative to the effective origin.
+     *
+     * @type {HarmonicCoordinates}
      */
     relativeHarmCoords;
     #presence; // Number from 0-1
     stepsFromA;
     /**
      * Position of the center of the ball
-     * 
+     *
      * @type {THREE.Vector3}
      */
     pos = new THREE.Vector3();
@@ -200,46 +202,46 @@ export class Ball {
 
     /**
      * The sphere geometry
-     * 
+     *
      * @type {THREE.SphereGeometry}
      */
     #geometry;
 
     /**
      * The material for the sphere
-     * 
+     *
      * @type {THREE.MeshStandardMaterial}
      */
     #material;
 
     /**
      * The mesh representing the ball object
-     * 
+     *
      * @type {THREE.Mesh}
      */
     #sphereMesh;
 
     /**
      * The troika text object
-     * 
+     *
      * @type {Text}
      */
     #textDisplay;
 
     /**
      * Text object for the fraction bar
-     * 
+     *
      * @type {Text}
      */
     #fractionBar;
 
     /**
      * Common setup between constructor and realive functions.
-     * 
-     * @param {HarmonicCoordinates} harmCoords 
-     * @param {number} stepsFromA 
-     * @param {number} presence 
-     * @param {boolean} isDebug 
+     *
+     * @param {HarmonicCoordinates} harmCoords
+     * @param {number} stepsFromA
+     * @param {number} presence
+     * @param {boolean} isDebug
      */
     setup(harmCoords, stepsFromA, presence, isDebug) {
         this.isDebug = isDebug;
@@ -258,7 +260,7 @@ export class Ball {
         this.setup(harmCoords, stepsFromA, presence, isDebug);
         this.ballColor = new THREE.Color();
         this.ballColor.setHSL(this.hue, this.saturation, this.lightness);
-        
+
         this.#geometry = new THREE.SphereGeometry(BALL_SIZE, 24, 24);
         this.#material = new THREE.MeshStandardMaterial({
             color: this.ballColor,
@@ -273,7 +275,7 @@ export class Ball {
 
         scene.add(this.#sphereMesh);
 
-        if (!this.isDebug) {   
+        if (!this.isDebug) {
             if (TEXT_TYPE !== 'none') {
                 this.#textDisplay = new Text();
                 this.#textDisplay.position.set(0, TEXT_TYPE === 'relfraction' ? -20 : -15, 0);
@@ -284,7 +286,7 @@ export class Ball {
                 this.#textDisplay.anchorY = 'middle';
                 this.#sphereMesh.add(this.#textDisplay);
             }
-            
+
             if (TEXT_TYPE === 'relfraction') {
                 this.#fractionBar = new Text();
                 this.#fractionBar.text = '_';
@@ -303,9 +305,9 @@ export class Ball {
 
     /**
      * Reactivate a dead ball and put in into the scene.
-     * 
-     * @param {HarmonicCoordinates} harmCoords 
-     * @param {number} stepsFromA 
+     *
+     * @param {HarmonicCoordinates} harmCoords
+     * @param {number} stepsFromA
      * @param {number} presence
      * @returns {Ball} this instance
      */
@@ -338,7 +340,7 @@ export class Ball {
 
     /**
      * Call this whenever ball is to be set inactive.
-     * 
+     *
      * Removes ball from scene and stops it from updating.
      */
     kill() {
@@ -385,8 +387,8 @@ export class Ball {
         let nonChordToneMult = this.isChordTone ? 1 : NON_CHORD_TONE_SAT_EFFECT;
 
         this.ballColor.setHSL(
-            this.hue, 
-            this.saturation * nonChordToneMult, 
+            this.hue,
+            this.saturation * nonChordToneMult,
             this.lightness,
         );
 
@@ -426,14 +428,14 @@ export class Ball {
 export class BallsManager {
     /**
      * Represents active balls indexed by their harmonic coordinates
-     * 
+     *
      * @type {Object.<HarmonicCoordinates, Ball>}
      */
     balls = {};
 
     /**
      * Contains list of inactive ball objects
-     * 
+     *
      * @type {[Ball]}
      */
     #listOfDeadBalls = [];
@@ -445,24 +447,24 @@ export class BallsManager {
 
     /**
      * Ball for showing where the origin is.
-     * 
+     *
      * @type {Ball}
      */
     originBall;
 
     /**
      * Ball for showing where the harmonic center is.
-     * 
+     *
      * @type {Ball}
      */
     harmonicCenterBall;
 
     constructor() {
-        this.originBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, ORIGIN_SIZE, true);
+        this.originBall = new Ball(new HarmonicCoordinates([0]), 0, ORIGIN_SIZE, true);
         this.originBall.ballColor = new THREE.Color(0xEEEEEE);
         this.originBall.updateDrawing();
 
-        this.harmonicCenterBall = new Ball(new HarmonicCoordinates(0,0,0,0,0), 0, HARMONIC_CENTROID_SIZE, true);
+        this.harmonicCenterBall = new Ball(new HarmonicCoordinates([0]), 0, HARMONIC_CENTROID_SIZE, true);
     }
 
     /**
@@ -517,10 +519,10 @@ export class BallsManager {
 
     /**
      * Deletes an active ball at given harmonic coordinate.
-     * 
+     *
      * Doesn't actually delete it, just moves the ball object into the reserve
-     * 
-     * @param {HarmonicCoordinates} harmCoords 
+     *
+     * @param {HarmonicCoordinates} harmCoords
      */
     deleteBall(harmCoords) {
         if (this.balls[harmCoords]) {
@@ -531,23 +533,23 @@ export class BallsManager {
     }
 
     /**
-     * 
+     *
      * @param {Object.<number, KeyState>} keyState
-     * @param {HarmonicContext} harmonicContext 
+     * @param {HarmonicContext} harmonicContext
      */
     tick(keyState, harmonicContext) {
         let xValues = [], yValues = [], zValues = [];
         Object.entries(this.balls).forEach(
-            ([key, ball]) => {
+            ([hcKey, ball]) => {
                 ball.tick(keyState, harmonicContext);
-                
+
                 if (ball.isDead) {
                     this.deleteBall(ball.harmCoords);
                     return;
                 }
 
-                if (ball.harmCoords != key) {
-                    console.warn('ball key mismatch: ', ball.harmCoords, key);
+                if (ball.harmCoords != hcKey) {
+                    console.warn('ball key mismatch: ', ball.harmCoords, hcKey);
                 }
 
                 xValues.push(ball.pos.x);
@@ -590,16 +592,16 @@ export class BallsManager {
 }
 
 export class KeyCenterParticleFountain {
-    
+
     /**
      * Position of the particle emitter
-     * 
+     *
      * @type {THREE.Vector3}
      */
     pos = new THREE.Vector3();
 
     /**
-     * A number from {@link MIN_FIFTH_HUE} to {@link MAX_FIFTH_HUE} representing the hue of the fountain.
+     * A number from {@linkcode MIN_FIFTH_HUE} to {@linkcode MAX_FIFTH_HUE} representing the hue of the fountain.
      */
     hue;
 
@@ -658,12 +660,12 @@ export class KeyCenterParticleFountain {
                 x: 0, y: 0, z: 0
             })
             .emit();
-        
+
         this.system
             .addEmitter(this.emitter)
             .addRenderer(this.particleRenderer)
             .emit({});
-        
+
         this.pointLight = new THREE.PointLight(0xffffff, 0, 0, 1);
         scene.add(this.pointLight);
     }
@@ -692,8 +694,8 @@ export class KeyCenterParticleFountain {
             new Nebula.Repulsion(this.pos, 0.1 + 0.3 * HAPPENINGNESS * HAPPENINGNESS, BALL_SIZE*2, Infinity, Nebula.ease.easeInQuad),
             new Nebula.Scale(new Nebula.Span(2 + HAPPENINGNESS, 1), 0),
             new Nebula.Color(
-                color, 
-                new THREE.Color().setHSL(this.hue, 0.3 + 0.3 * HAPPENINGNESS, 0.5 + 0.2 * HAPPENINGNESS), 
+                color,
+                new THREE.Color().setHSL(this.hue, 0.3 + 0.3 * HAPPENINGNESS, 0.5 + 0.2 * HAPPENINGNESS),
                 Infinity, Nebula.ease.easeOutSine)
         ]).setInitializers([
             new Nebula.Body(this.sprite),
@@ -717,9 +719,9 @@ export class KeyCenterParticleFountain {
 
 export class Scaffolding {
 
-    /** 
-     * Contains the most recent Ball object which requires the existence of this line. 
-     * 
+    /**
+     * Contains the most recent Ball object which requires the existence of this line.
+     *
      * @type {Ball}
      */
     reasonForExisting;
@@ -728,7 +730,7 @@ export class Scaffolding {
      * @type {THREE.Vector3}
      */
     from = new THREE.Vector3();
-    
+
     /**
      * @type {THREE.Vector3}
      */
@@ -744,42 +746,50 @@ export class Scaffolding {
     toHarmCoords;
     thickness = LINE_THICKNESS;
     color;
+
+    /**
+     * A prime number that represents the unit direction that this scaffolding points towards.
+     *
+     * Is negative if the direction is negative.
+     *
+     * @type {number}
+     */
     adjacency;
     presence;
 
     /**
      * Contains the geometry of the cylinder
-     * 
+     *
      * @type {THREE.CylinderGeometry}
      */
     #geometry;
 
     /**
      * Contains the line material
-     * 
+     *
      * @type {THREE.MeshStandardMaterial}
      */
     #material;
 
     /**
      * Contains cylinder mesh
-     * 
+     *
      * @type {THREE.Mesh}
      */
     #mesh;
 
     /**
      * Common setup between scaffolding constructor and realive methods
-     * 
-     * @param {HarmonicCoordinates} from 
-     * @param {HarmonicCoordinates} to 
-     * @param {Ball} reasonForExisting 
+     *
+     * @param {HarmonicCoordinates} from
+     * @param {HarmonicCoordinates} to
+     * @param {Ball} reasonForExisting
      */
     setup(from, to, reasonForExisting) {
         this.adjacency = from.checkAdjacent(to);
-        if(this.adjacency === 0) {
+        if (this.adjacency === 0) {
             console.log(from, to);
-            throw 'Attempted to construct scaffolding between non-adjacent coordinates'
+            throw new Error('Attempted to construct scaffolding between non-adjacent coordinates');
         }
 
         this.reasonForExisting = reasonForExisting;
@@ -789,33 +799,7 @@ export class Scaffolding {
         [this.from.x, this.from.y, this.from.z] = from.toUnscaledCoords();
         [this.to.x, this.to.y, this.to.z] = to.toUnscaledCoords();
 
-        switch (this.adjacency) {
-            case 2:
-            case -2:
-                // Octaves are very plain, nearly white with light blue tint
-                this.color = OCTAVES_COLOR;
-                break;
-            case 3:
-            case -3:
-                // fifths are peach
-                this.color = FIFTHS_COLOR;
-                break;
-            case 5:
-            case -5:
-                // thirds are mint green
-                this.color = THIRDS_COLOR;
-                break;
-            case 7:
-            case -7:
-                // blue notes are blue
-                this.color = SEPTIMAL_COLOR;
-                break;
-            case 11:
-            case -11:
-                // 11-limit notes are rusty
-                this.color = UNDECIMAL_COLOR;
-                break;
-        }
+        this.color = JI_COLORS[Math.abs(this.adjacency)];
 
         // this.color.setAlpha(Math.pow(this.presence, 0.8));
         this.thickness = Math.pow(this.presence, 0.9) * (LINE_THICKNESS + 0.2 * HAPPENINGNESS);
@@ -831,9 +815,9 @@ export class Scaffolding {
         this.setup(from, to, reasonForExisting);
 
         this.#geometry = new THREE.CylinderGeometry(
-            1, 
-            1, 
-            1, // default height to 1, scale later 
+            1,
+            1,
+            1, // default height to 1, scale later
             8, // no. radial segments
         );
 
@@ -851,10 +835,10 @@ export class Scaffolding {
 
     /**
      * Re-activates this scaffolding.
-     * 
-     * @param {HarmonicCoordinates} from 
-     * @param {HarmonicCoordinates} to 
-     * @param {Ball} reasonForExisting 
+     *
+     * @param {HarmonicCoordinates} from
+     * @param {HarmonicCoordinates} to
+     * @param {Ball} reasonForExisting
      * @returns {Scaffolding} This instance
      */
     realive(from, to, reasonForExisting) {
@@ -865,9 +849,9 @@ export class Scaffolding {
 
     /**
      * Call this to remove line from scene and stop updating.
-     * 
-     * If this is called even when the {@link reasonForExisting} is still alive,
-     * the scaffolding will still be removed and will stop updating until {@link realive} is called.
+     *
+     * If this is called even when the {@linkcode reasonForExisting} is still alive,
+     * the scaffolding will still be removed and will stop updating until {@linkcode realive} is called.
      */
     kill() {
         this.presence = 0;
@@ -902,10 +886,12 @@ export class Scaffolding {
 }
 
 export class ScaffoldingManager {
-    /** 
+    /**
      * Mapping of [from, to] coordinates to scaffolding lines.
-     * 
+     *
      * Only contains active lines.
+     *
+     * TODO: Check whether "hashing" the new {@linkcode HarmonicCoordinates} implementation as a key works.
      *
      * @type {Object.<string, Scaffolding>}
      */
@@ -913,7 +899,7 @@ export class ScaffoldingManager {
 
     /**
      * Stores unused lines for reuse
-     * 
+     *
      * @type {Scaffolding[]}
      */
     #deadLines = [];
@@ -930,11 +916,11 @@ export class ScaffoldingManager {
 
     /**
      * Inactivates a scaffolding line that connects the points from/toCoord.
-     * 
+     *
      * The order of the two coordinates do not matter.
-     * 
-     * @param {HarmonicCoordinates} fromCoord 
-     * @param {HarmonicCoordinates} toCoord 
+     *
+     * @param {HarmonicCoordinates} fromCoord
+     * @param {HarmonicCoordinates} toCoord
      */
     #deleteLine(fromCoord, toCoord) {
         if (this.#lines[[fromCoord, toCoord]]) {
@@ -949,6 +935,12 @@ export class ScaffoldingManager {
         }
     }
 
+    /**
+     *
+     * @param {HarmonicCoordinates} fromCoord
+     * @param {HarmonicCoordinates} toCoord
+     * @param {Ball} reasonForExisting
+     */
     #createLine(fromCoord, toCoord, reasonForExisting) {
         this.#deleteLine(fromCoord, toCoord);
         let newScaffolding = this.#deadLines.pop();
@@ -975,40 +967,47 @@ export class ScaffoldingManager {
 
     /**
      * Create the necessary scaffolding between two places
-     * 
+     *
      * @param {HarmonicCoordinates} fromHarmonicCoords
      * @param {Ball} toBall
      */
     create(fromHarmonicCoords, toBall) {
         let path = [];
         let cursor = fromHarmonicCoords;
+        path.push(cursor); // start the path
+
         let destination = toBall.harmCoords;
 
+        let maxIdx = Math.max(cursor.coords.length, destination.coords.length);
+
+        // console.log('maxIdx:', maxIdx);
+
+        let primeIdx = 0;
+
         // populate path with adjacent coordinates to construct the scaffolding with
-        while (true) {
+        while (primeIdx < maxIdx) {
+
+            let destPow = destination.coords[primeIdx] ?? 0;
+            let curPow = cursor.coords[primeIdx] ?? 0;
+
+            if (curPow == destPow) {
+                // no more difference for this prime, go next.
+                primeIdx ++;
+                continue;
+            }
+
+            let coordAdd = [];
+            coordAdd.length = primeIdx + 1;
+            coordAdd.fill(0);
+            if (curPow < destPow) {
+                coordAdd[primeIdx] = 1;
+            } else {
+                coordAdd[primeIdx] = -1;
+            }
+
+            cursor = cursor.add(new HarmonicCoordinates(coordAdd));
+
             path.push(cursor);
-            if (destination.p2 < cursor.p2)
-                cursor = cursor.add(new HarmonicCoordinates(-1,0,0,0,0));
-            else if (destination.p2 > cursor.p2)
-                cursor = cursor.add(new HarmonicCoordinates(1,0,0,0,0));
-            else if (destination.p3 < cursor.p3)
-                cursor = cursor.add(new HarmonicCoordinates(0,-1,0,0,0));
-            else if (destination.p3 > cursor.p3)
-                cursor = cursor.add(new HarmonicCoordinates(0,1,0,0,0));
-            else if (destination.p5 < cursor.p5)
-                cursor = cursor.add(new HarmonicCoordinates(0,0,-1,0,0));
-            else if (destination.p5 > cursor.p5)
-                cursor = cursor.add(new HarmonicCoordinates(0,0,1,0,0));
-            else if (destination.p7 < cursor.p7)
-                cursor = cursor.add(new HarmonicCoordinates(0,0,0,-1,0));
-            else if (destination.p7 > cursor.p7)
-                cursor = cursor.add(new HarmonicCoordinates(0,0,0,1,0));
-            else if (destination.p11 < cursor.p11)
-                cursor = cursor.add(new HarmonicCoordinates(0,0,0,0,-1));
-            else if (destination.p11 > cursor.p11)
-                cursor = cursor.add(new HarmonicCoordinates(0,0,0,0,1));
-            else
-                break;
         }
 
         for (let i = 0; i < path.length - 1; i++) {
@@ -1016,6 +1015,7 @@ export class ScaffoldingManager {
             let to = path[i+1];
 
             this.#createLine(from, to, toBall);
+            // console.log('creating line between: ', from.toMonzoString(), to.toMonzoString());
         }
     }
 }
