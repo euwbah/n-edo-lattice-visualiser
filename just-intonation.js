@@ -70,8 +70,9 @@ function primeDistanceFunction(prime) {
  */
 const PRIME_UNIT_VECTORS = (() => {
     let vecs = [
-        [0, primeDistanceFunction(2), 0], // Octave should point upwards.
-        [primeDistanceFunction(3), 0, 0], // Fifths should point rightward
+        // Swap these two when playing many octaves so that octaves can fit on the screen.
+        [0, primeDistanceFunction(2), 0], // Octave should point upward.
+        [primeDistanceFunction(3), 0, 0], // Fifths should point right.
     ];
 
     for (let idx in PRIME_LOOKUP) {

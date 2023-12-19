@@ -82,6 +82,7 @@ socket.onmessage = (e) => {
     if (LOADED) {
         // rest will contian exact harmonic coordinate data for 12ji harmonic context mode.
         /**
+         *
          * @type {string[]}
          */
         let [type, data1, data2, ...rest] = e.data.split(':');
@@ -107,6 +108,7 @@ socket.onmessage = (e) => {
                     });
                 }
             }
+            // console.log(monData);
             NoteTracking.noteOn(data1, data2,
                 harmonicContext, ballManager, scaffoldingManager, monData);
         } else if (type === 'off') {

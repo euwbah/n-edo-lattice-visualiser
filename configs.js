@@ -116,7 +116,7 @@ export const JI_COLORS = (() => {
  */
 export const HARMONIC_CONTEXT_METHOD = '12ji';
 
-export const MAX_SHORT_TERM_MEMORY = 9;
+export const MAX_SHORT_TERM_MEMORY = 7;
 export const MAX_DISSONANCE = 23;
 
 /**
@@ -265,10 +265,10 @@ export const CAM_ROT_SPEED = 1.5;
 export const MAX_CAM_ROT_SPEED = 1.57;
 export const CAM_ROT_ACCEL = 0.01;
 export const MIN_CAM_DIST = 80;
-export const MAX_CAM_DIST = 500;
+export const MAX_CAM_DIST = 400;
 export const CAM_DIST_HAPPENINGNESS = 110;
-export const DIST_STD_DEV_RATIO = 0.116; // Affects standard deviation exponential multiplier
-export const DIST_STD_DEV_CONST = 0.5; // Constant added to std dev inside exponential multiplier
+export const DIST_STD_DEV_RATIO = 0.11; // Affects standard deviation exponential multiplier
+export const DIST_STD_DEV_CONST = 1.0; // Constant added to std dev inside exponential multiplier
 export const DIST_CHANGE_SPEED = 0.4;
 
 /**==
@@ -300,8 +300,8 @@ export const LINE_THICKNESS = 1;
 Happeningness diminishes with time and increases with notes.
 */
 window.HAPPENINGNESS = 0;
-export const NOTE_ON_HAPPENINGNESS = 0.1;
-export const HELD_NOTE_HAPPENINGNESS = 0.04;
+export const NOTE_ON_HAPPENINGNESS = 0.08;
+export const HELD_NOTE_HAPPENINGNESS = 0.03;
 export const SUSTAINED_NOTE_HAPPENINGNESS = 0.01;
 
 export function addHappeningness(amt) {
