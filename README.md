@@ -1,4 +1,4 @@
-# 11-limit lattice visualizer for 22/31edo
+# Just intonation lattice visualizer for 22/31edo/free just intonation
 
 ![img.png](img.png)
 
