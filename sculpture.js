@@ -20,24 +20,24 @@ export class SculptureBall {
     #mesh;
     /**
      * The time (in ms) when this note was activated.
-     * 
+     *
      * @type {number}
      */
     timeOn;
 
     /**
-     * A number from 0 - 1 representing how near the start/end of the sculpture (in time dimension) 
+     * A number from 0 - 1 representing how near the start/end of the sculpture (in time dimension)
      * this ball is.
-     * 
+     *
      * Stores the memoized value of `timeOn / lastBallTimeOn`.
-     * 
+     *
      * @type {number}
      */
     timePosition;
 
     /**
      * The color of this ball.
-     * 
+     *
      * @type {THREE.Color}
      */
     color;
@@ -51,10 +51,10 @@ export class SculptureBall {
     }
 
     /**
-     * 
-     * @param {number} timeOn 
-     * @param {number} stepsFromA 
-     * @param {HarmonicCoordinates} harmCoords 
+     *
+     * @param {number} timeOn
+     * @param {number} stepsFromA
+     * @param {HarmonicCoordinates} harmCoords
      */
     constructor(timeOn, stepsFromA, harmCoords) {
         this.timeOn = timeOn;
@@ -78,7 +78,7 @@ export class SculptureBall {
 
     /**
      * Update the sculpture ball.
-     * 
+     *
      * @param {number} progress a number from 0-1 representing the animation cycle progress.
      * @param {number} lastBallTimeOn the timeOn (ms) of the last ball in the sculpture.
      */
@@ -89,7 +89,7 @@ export class SculptureBall {
          */
         let intensity = Math.cos(2 * Math.PI * (progress - this.timePosition)) / 2 + 0.5;
         this.#material.color.setHSL(
-            this.hue, 
+            this.hue,
             0.6 + 0.4 * Math.pow(intensity, 20),
             0.1 + 0.3 * Math.pow(intensity, 20));
         this.#material.opacity = 0.03 + 0.4 * Math.pow(intensity, 30);
@@ -98,13 +98,13 @@ export class SculptureBall {
 
 /**
  * A Sculpture of the entire recorded lattice.
- * 
+ *
  * An animated fast-forwarded zoomed out 'traversal' of the harmonic space traversed.
  */
 export class Sculpture {
     /**
      * List of balls
-     * 
+     *
      * @type {SculptureBall[]}
      */
     balls = [];
@@ -116,18 +116,18 @@ export class Sculpture {
 
     /**
      * the center of the sculpture.
-     * 
+     *
      * @type {THREE.Vector3}
      */
     centroid = new THREE.Vector3();
 
     /**
      * Create a sculpture from a recording.
-     * 
+     *
      * Use `window.beginRecording()` and `window.endRecording()` in the console to record a piece
      * copy the JSON data from the console and put it into `./recording.json`.
-     * 
-     * @param {[{timeOn: number, stepsFromA: number, harmCoords: {p2: number, p3: number, p5: number, p7: number, p11: number}}]} recording The JSON data of the recorded piece. 
+     *
+     * @param {[{timeOn: number, stepsFromA: number, harmCoords: number[]}]} recording The JSON data of the recorded piece.
      */
     constructor(recording) {
         for (let {timeOn, stepsFromA, harmCoords} of recording) {
