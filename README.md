@@ -2,6 +2,19 @@
 
 ![img.png](img.png)
 
+## Demo videos
+
+31 edo:
+- [Für Alina - Arvo Pärt](https://youtu.be/dxU0jaPVpyU)
+- [water splashes further - euwbah](https://youtu.be/oR8KHLdCCwA)
+
+22 edo:
+- [the peacocks - jimmy rowles](https://youtu.be/nsHpG8i0Bps)
+- [sky in grass - euwbah](https://youtu.be/nmKoyL7Xnrc)
+
+High-limit free just intonation:
+- [Ondine (Gaspard de la nuit) - Maurice Ravel](https://youtu.be/Ck33YZt5Mf0https://youtu.be/Ck33YZt5Mf0)
+
 ## How to use
 
 Intended for use with https://github.com/euwbah/microtonal-seaboard and https://github.com/euwbah/ji-performer/.
@@ -11,11 +24,13 @@ Intended for use with https://github.com/euwbah/microtonal-seaboard and https://
 All the config variables start with `export const` in [`configs.js`](./configs.js).
 
 When running with [microtonal-seaboard](https://github.com/euwbah/microtonal-seaboard) in 22edo/31edo mode:
+
 - `EDO`: set to 22 or 31
 - `HARMONIC_CONTEXT_METHOD`: set to `'cb'`, `'l2'`, or `'l2eo'`
 - `SCULPTURE_MODE`: set to `false`
 
 When running with [ji-performer](https://github.com/euwbah/ji-performer/):
+
 - `EDO`: set to 12
 - `HARMONIC_CONTEXT_METHOD`: set to `'12ji'`
 - `SCULPTURE_MODE`: set to `false`
@@ -23,6 +38,7 @@ When running with [ji-performer](https://github.com/euwbah/ji-performer/):
 Remember to run the server first (microtonal-seaboard, ji-performer) before loading the visualizer. If nothing shows up, try refreshing, and check the browser developer console (F12, Ctrl+Shift+J) for errors.
 
 There's a lot more configuration options pertaining to the harmonic context modelling (coefficients for heuristically simulating short term memory and perception of pitches), graphics (camera angles, zoom, speed, colors, shaders), and text appearance (display absolute ratios/relative ratios/monzos, use octave reduced prime intervals). They're (mostly) documented in JSDoc format.
+
 ## What is happening?
 
 > This section is a bit outdated, it was written and still holds true for 31edo in `cb` harmonic context mode.
