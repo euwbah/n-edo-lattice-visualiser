@@ -32,7 +32,7 @@ class Points extends Object3D {
 
 		super.copy( source, recursive );
 
-		this.material = source.material;
+		this.material = Array.isArray( source.material ) ? source.material.slice() : source.material;
 		this.geometry = source.geometry;
 
 		return this;
@@ -155,6 +155,8 @@ function testPoint( point, index, localThresholdSq, matrixWorld, raycaster, inte
 			point: intersectPoint,
 			index: index,
 			face: null,
+			faceIndex: null,
+			barycoord: null,
 			object: object
 
 		} );

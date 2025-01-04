@@ -1,20 +1,5 @@
 class WebGL {
 
-	static isWebGLAvailable() {
-
-		try {
-
-			const canvas = document.createElement( 'canvas' );
-			return !! ( window.WebGLRenderingContext && ( canvas.getContext( 'webgl' ) || canvas.getContext( 'experimental-webgl' ) ) );
-
-		} catch ( e ) {
-
-			return false;
-
-		}
-
-	}
-
 	static isWebGL2Available() {
 
 		try {
@@ -30,9 +15,20 @@ class WebGL {
 
 	}
 
-	static getWebGLErrorMessage() {
+	static isColorSpaceAvailable( colorSpace ) {
 
-		return this.getErrorMessage( 1 );
+		try {
+
+			const canvas = document.createElement( 'canvas' );
+			const ctx = window.WebGL2RenderingContext && canvas.getContext( 'webgl2' );
+			ctx.drawingBufferColorSpace = colorSpace;
+			return ctx.drawingBufferColorSpace === colorSpace; // deepscan-disable-line SAME_OPERAND_VALUE
+
+		} catch ( e ) {
+
+			return false;
+
+		}
 
 	}
 
@@ -83,6 +79,33 @@ class WebGL {
 		element.innerHTML = message;
 
 		return element;
+
+	}
+
+	// @deprecated, r168
+
+	static isWebGLAvailable() {
+
+		console.warn( 'isWebGLAvailable() has been deprecated and will be removed in r178. Use isWebGL2Available() instead.' );
+
+		try {
+
+			const canvas = document.createElement( 'canvas' );
+			return !! ( window.WebGLRenderingContext && ( canvas.getContext( 'webgl' ) || canvas.getContext( 'experimental-webgl' ) ) );
+
+		} catch ( e ) {
+
+			return false;
+
+		}
+
+	}
+
+	static getWebGLErrorMessage() {
+
+		console.warn( 'getWebGLErrorMessage() has been deprecated and will be removed in r178. Use getWebGL2ErrorMessage() instead.' );
+
+		return this.getErrorMessage( 1 );
 
 	}
 

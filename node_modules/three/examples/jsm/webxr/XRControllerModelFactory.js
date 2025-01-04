@@ -206,11 +206,12 @@ function addAssetSceneToControllerModel( controllerModel, scene ) {
 
 class XRControllerModelFactory {
 
-	constructor( gltfLoader = null ) {
+	constructor( gltfLoader = null, onLoad = null ) {
 
 		this.gltfLoader = gltfLoader;
 		this.path = DEFAULT_PROFILES_PATH;
 		this._assetCache = {};
+		this.onLoad = onLoad;
 
 		// If a GLTFLoader wasn't supplied to the constructor create a new one.
 		if ( ! this.gltfLoader ) {
@@ -218,6 +219,14 @@ class XRControllerModelFactory {
 			this.gltfLoader = new GLTFLoader();
 
 		}
+
+	}
+
+	setPath( path ) {
+
+		this.path = path;
+
+		return this;
 
 	}
 
@@ -230,7 +239,7 @@ class XRControllerModelFactory {
 
 			const xrInputSource = event.data;
 
-			if ( xrInputSource.targetRayMode !== 'tracked-pointer' || ! xrInputSource.gamepad ) return;
+			if ( xrInputSource.targetRayMode !== 'tracked-pointer' || ! xrInputSource.gamepad || xrInputSource.hand ) return;
 
 			fetchProfile( xrInputSource, this.path, DEFAULT_PROFILE ).then( ( { profile, assetPath } ) => {
 
@@ -246,6 +255,8 @@ class XRControllerModelFactory {
 					scene = cachedAsset.scene.clone();
 
 					addAssetSceneToControllerModel( controllerModel, scene );
+
+					if ( this.onLoad ) this.onLoad( scene );
 
 				} else {
 
@@ -263,6 +274,8 @@ class XRControllerModelFactory {
 						scene = asset.scene.clone();
 
 						addAssetSceneToControllerModel( controllerModel, scene );
+
+						if ( this.onLoad ) this.onLoad( scene );
 
 					},
 					null,

@@ -1,16 +1,13 @@
 import {
 	LinearFilter,
 	Matrix3,
-	Mesh,
 	NearestFilter,
-	OrthographicCamera,
-	PlaneGeometry,
 	RGBAFormat,
-	Scene,
 	ShaderMaterial,
 	StereoCamera,
 	WebGLRenderTarget
 } from 'three';
+import { FullScreenQuad } from '../postprocessing/Pass.js';
 
 class AnaglyphEffect {
 
@@ -29,10 +26,6 @@ class AnaglyphEffect {
 			- 0.0879388, 0.73364, - 0.112961,
 			- 0.00155529, - 0.0184503, 1.2264
 		] );
-
-		const _camera = new OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
-
-		const _scene = new Scene();
 
 		const _stereo = new StereoCamera();
 
@@ -75,37 +68,23 @@ class AnaglyphEffect {
 				'uniform mat3 colorMatrixLeft;',
 				'uniform mat3 colorMatrixRight;',
 
-				// These functions implement sRGB linearization and gamma correction
-
-				'float lin( float c ) {',
-				'	return c <= 0.04045 ? c * 0.0773993808 :',
-				'			pow( c * 0.9478672986 + 0.0521327014, 2.4 );',
-				'}',
-
-				'vec4 lin( vec4 c ) {',
-				'	return vec4( lin( c.r ), lin( c.g ), lin( c.b ), c.a );',
-				'}',
-
-				'float dev( float c ) {',
-				'	return c <= 0.0031308 ? c * 12.92',
-				'			: pow( c, 0.41666 ) * 1.055 - 0.055;',
-				'}',
-
-
 				'void main() {',
 
 				'	vec2 uv = vUv;',
 
-				'	vec4 colorL = lin( texture2D( mapLeft, uv ) );',
-				'	vec4 colorR = lin( texture2D( mapRight, uv ) );',
+				'	vec4 colorL = texture2D( mapLeft, uv );',
+				'	vec4 colorR = texture2D( mapRight, uv );',
 
 				'	vec3 color = clamp(',
 				'			colorMatrixLeft * colorL.rgb +',
 				'			colorMatrixRight * colorR.rgb, 0., 1. );',
 
 				'	gl_FragColor = vec4(',
-				'			dev( color.r ), dev( color.g ), dev( color.b ),',
+				'			color.r, color.g, color.b,',
 				'			max( colorL.a, colorR.a ) );',
+
+				'	#include <tonemapping_fragment>',
+				'	#include <colorspace_fragment>',
 
 				'}'
 
@@ -113,8 +92,7 @@ class AnaglyphEffect {
 
 		} );
 
-		const _mesh = new Mesh( new PlaneGeometry( 2, 2 ), _material );
-		_scene.add( _mesh );
+		const _quad = new FullScreenQuad( _material );
 
 		this.setSize = function ( width, height ) {
 
@@ -146,7 +124,7 @@ class AnaglyphEffect {
 			renderer.render( scene, _stereo.cameraR );
 
 			renderer.setRenderTarget( null );
-			renderer.render( _scene, _camera );
+			_quad.render( renderer );
 
 			renderer.setRenderTarget( currentRenderTarget );
 
@@ -156,8 +134,9 @@ class AnaglyphEffect {
 
 			_renderTargetL.dispose();
 			_renderTargetR.dispose();
-			_mesh.geometry.dispose();
-			_mesh.material.dispose();
+
+			_material.dispose();
+			_quad.dispose();
 
 		};
 

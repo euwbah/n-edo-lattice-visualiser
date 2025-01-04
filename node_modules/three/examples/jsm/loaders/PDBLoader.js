@@ -2,7 +2,9 @@ import {
 	BufferGeometry,
 	FileLoader,
 	Float32BufferAttribute,
-	Loader
+	Loader,
+	Color,
+	SRGBColorSpace
 } from 'three';
 
 class PDBLoader extends Loader {
@@ -114,6 +116,8 @@ class PDBLoader extends Loader {
 
 			// atoms
 
+			const c = new Color();
+
 			for ( let i = 0, l = atoms.length; i < l; i ++ ) {
 
 				const atom = atoms[ i ];
@@ -128,7 +132,9 @@ class PDBLoader extends Loader {
 				const g = atom[ 3 ][ 1 ] / 255;
 				const b = atom[ 3 ][ 2 ] / 255;
 
-				colorsAtoms.push( r, g, b );
+				c.setRGB( r, g, b, SRGBColorSpace );
+
+				colorsAtoms.push( c.r, c.g, c.b );
 
 			}
 

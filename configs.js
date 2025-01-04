@@ -1,6 +1,6 @@
 import { Color } from 'three';
 
-export const VERSION = 'v0.1.7';
+export const VERSION = 'v0.2.0';
 export const DEBUG = true;
 export const SHOW_DEBUG_BALLS = true;
 
@@ -9,16 +9,32 @@ export const USE_OCTAVE_REDUCED_PRIMES = true;
 /**
  * For 22, 31 edo, `convertStepsToPossibleCoord` converts edostep information to possible ratios.
  *
- * For 12 edo, specify explicit `HarmonicCoordinates` over websocket to override arbitrary JI visualizations.
- * Specify {@linkcode HARMONIC_CONTEXT_METHOD} `= '12ji'`
+ * For 12 edo, specify explicit `HarmonicCoordinates` over websocket to override arbitrary JI
+ * visualizations. Specify {@linkcode HARMONIC_CONTEXT_METHOD} `= '12ji'`
  *
- * The 12 edo steps can be arbitrary and is merely for the visualizer to remember which notes correspond to which
- * MIDI key, and need not match up with the actual 12 edo key press.
+ * The 12 edo steps can be arbitrary and is merely for the visualizer to remember which notes
+ * correspond to which MIDI key, and need not match up with the actual 12 edo key press.
  *
  * @type {12 | 22 | 31}
  */
-export const EDO = 12;
+export const EDO = 31;
 document.title = `${EDO} EDO ${EDO == 12 ? 'N' : 11}-limit lattice`;
+
+/**
+ * Set to `true` to use MIDI input (12 edo). Otherwise, requires websocket messages to be sent to
+ * the server.
+ *
+ * If receiving signals from Seaboard microtuner, set to `false`.
+ */
+export const USE_MIDI = false;
+
+/**
+ * If `true`, use raycasting to identify which ball is being hovered & clicked. Will display ball's
+ * coordinate information. Clicking will copy the coordinate array to clipboard.
+ *
+ * Use only for demonstration/debugging. Turn this off when performing, extremely laggy.
+ */
+export const INTERACTIVE = false;
 
 /**
  * Hardcoded list of primes. Each prime number corresponds to one axis of the lattice.
@@ -63,13 +79,16 @@ export const SCAFFOLDING_SPACE_RATIO = 0.05;
 /**
  * Starting hue of the color wheel 0-1 (0 is red). The tuning note A will correspond to this hue.
  *
- * {@linkcode MIN_FIFTH_HUE} can be greater than {@linkcode MAX_FIFTH_HUE} to reverse the direction of the color wheel.
+ * {@linkcode MIN_FIFTH_HUE} can be greater than {@linkcode MAX_FIFTH_HUE} to reverse the direction
+ * of the color wheel.
  */
 export const MIN_FIFTH_HUE = 0.75;
 /**
- * Ending hue of the color wheel 0-1 (0 is red). The last fifth before A will correspond to this hue.
+ * Ending hue of the color wheel 0-1 (0 is red). The last fifth before A will correspond to this
+ * hue.
  *
- * {@linkcode MIN_FIFTH_HUE} can be greater than {@linkcode MAX_FIFTH_HUE} to reverse the direction of the color wheel.
+ * {@linkcode MIN_FIFTH_HUE} can be greater than {@linkcode MAX_FIFTH_HUE} to reverse the direction
+ * of the color wheel.
  */
 export const MAX_FIFTH_HUE = 0.28;
 
@@ -105,88 +124,548 @@ export const JI_COLORS = (() => {
 })();
 
 /**
- * - cb: critical band roughness 'least discordant' short term memory simulation method
+ * - cb: critical band roughness 'least discordant' short term memory simulation
+ *
  * - l2: least L2 norm distance from true centroid/origin method
+ *
  * - l2eo: least L2 norm distance from effective origin method
- * - 12ji: Just intonation with midi key on/off information sent as 12 edo, and explicit `HarmonicCoordinates` are
- *         sent in the websocket messages, no harmonic context detempering/'upscaling' required. Must set {@linkcode EDO}
- *         to 12.
  *
- * @type {'cb' | 'l2' | 'l2eo' | '12ji'}
+ * - 12ji: Just intonation with midi key on/off information sent as 12 edo, and explicit
+ *         `HarmonicCoordinates` are sent in the websocket messages, no harmonic context
+ *         detempering/'upscaling' required. Must set {@linkcode EDO} to 12.
+ *
+ * - graph: graph-based recursive harmonic context method. Keeps track of note tonicities
+ *   ('tonicness') and per-note dissonance contributions. Detemperament candidates are based on
+ *   minimum dissonance. However, this doesn't perform that well for low EDOs with lots of tempered
+ *   commas, since notes that are very distant from current tonicity (low tonicity) will contribute
+ *   low dissonance
+ *
+ * - graphdist: graph-based method. Same as 'graph' but for selection of detemperament candidates,
+ *   prioritizes minimum harmonic distance from anchoring parent pitches. If multiple parent pitches
+ *   have the same harmonic distance (e.g. the note G4 has the candidates (3/2 of C4) and (2/3 of
+ *   D5)), then prioritizes the parent with higher tonicity.
+ *
+ * - draw: The first note is set to the first coordinate of {@link DRAW_COORDS}. Then, a pointer is
+ *   moved along DRAW_COORDS, which prioritizes the next note to be placed in the harmonic context
+ *   over all other options. If none of the detemperament options match the current target in
+ *   DRAW_COORDS, 'graphdist' is used.
+ *
+ *   If a note from DRAW_COORDS is placed, the ball will be marked as permanent. When the permanent
+ *   ball reaches 0 presence, it will stay on screen indefinitely.
+ *
+ *   Use this to make a fixed drawing.
+ *
+ *
+ * @type {'cb' | 'l2' | 'l2eo' | '12ji' | 'graph' | 'graphdist' | 'draw'}
  */
-export const HARMONIC_CONTEXT_METHOD = '12ji';
+export const HARMONIC_CONTEXT_METHOD = 'graphdist';
 
+/**
+ * When in 'draw' mode, this array contains the coordinates to draw.
+ *
+ * @type {number[][]}
+ */
+export const DRAW_COORDS = [
+    // 幸 (8 strokes)
+    // 1/8 一
+    [3, -9, -9, -1],
+    [3, -9, -10, -2],
+    [0, -8, -12, 0],
+    [-3, -7, -14, 2],
+    [-3, -7, -13, 3],
+    [-3, -7, -12, 4],
+    [-2, -7, -11, 4],
+    [-2, -5, -11, 4, -1],
+    [-2, -5, -11, 3, -1],
+    [-2, -5, -11, 2, -1],
+    [-2, -6, -12, 2, 0],
+    [-2, -6, -11, 3, 0],
+    [-2, -6, -11, 4, 0],
+    [-2, -7, -11, 4, 1],
+    [-2, -7, -12, 3, 1],
+    [-2, -7, -12, 2, 1],
+    [-2, -8, -13, 2, 2],
+    [-2, -8, -12, 3, 2],
+    [-2, -8, -11, 4, 2],
+    [-3, -7, -11, 5, 2],
+    [-3, -7, -12, 4, 2],
+    [-3, -7, -13, 3, 2],
+    [-3, -5, -13, 3, 1],
+    [-3, -5, -12, 4, 1],
+    [-3, -5, -11, 5, 1],
+    [-3, -3, -11, 5, 0],
+    [-3, -3, -12, 4, 0],
+    [-3, -3, -13, 3, 0],
+    [-3, -1, -13, 3, -1],
+    [-3, -1, -12, 4, -1],
+    [-3, 2, -11, 5, -3],
+    [-3, 0, -9, 6, -1],
+    [-3, 0, -10, 5, -1],
+    [-3, 1, -11, 4, -2],
+    [-3, 0, -13, 3, -1],
+    [-3, 1, -12, 4, -1],
+    [-2, 0, -13, 3, -1],
+    [-3, -1, -10, 4, 0],
+    [-3, 1, -10, 4, -1],
+    [-3, 3, -12, 4, -2],
+    [-3, 3, -10, 4, -2],
+    [-3, 2, -9, 5, -1],
+    [-3, 3, -7, 6, -2],
+    [-2, 2, -8, 5, -2],
+    [-1, 1, -8, 4, -2],
+    [-1, 0, -7, 5, -1],
+    // Transition to 2/8
+    [0, 0, -6, 5, -2],
+    [1, 0, -5, 6, -2],
+    [1, -1, -5, 7, -2],
+
+    // 2/8　十
+    [1, -1, -3, 7, -2],
+    [1, 2, -1, 7, -4],
+    [1, 5, 1, 7, -6],
+    [1, 8, 3, 7, -8],
+    [1, -2, -5, 6, -1],
+    [1, -1, -2, 6, -2],
+    [2, -2, 0, 5, -1],
+    [1, -2, 0, 6, -1],
+    [0, -2, -1, 7, -1],
+    [1, -3, -3, 5, -1],
+    [1, -4, -2, 5, 0],
+
+    [1, -3, -2, 5, 0],
+    [1, -5, -1, 5, 1],
+    [0, -5, -1, 6, 1],
+    [-1, -5, 0, 7, 1], // up
+    [-1, -4, 0, 7, 1],
+    [-1, -3, 1, 7, 0],
+    [-1, -2, 2, 7, -1], // down
+
+    [-1, 2, 5, 7, -4],
+    [-1, 1, 4, 7, -3],
+    [-1, 0, 3, 7, -2],
+
+    [-2, -2, 2, 7, -1],
+    [-2, -4, 2, 7, 1],
+    [-3, -2, 3, 7, -1],
+    [-2, -2, 4, 6, -1],
+    [-2, -1, 4, 6, -2],
+    [-1, -3, 4, 5, -1],
+    [-1, -3, 3, 4, -1],
+
+    // transition to 3/8
+    [-1, -4, 4, 4, -1],
+    [-2, -6, 4, 5, 0],
+
+    // 3/8　土
+    [-2, -4, 6, 5, -3],
+    [-2, -3, 7, 5, -3],
+    [-2, -2, 6, 5, -4],
+    [-2, -4, 6, 5, -2],
+    [-3, -3, 3, 5, -3],
+    [-2, -2, 6, 5, -3],
+    [-2, -5, 5, 5, -1],
+    [-1, -1, 8, 5, -3],
+    [0, -1, 7, 4, -3],
+    [-2, -3, 5, 5, -1],
+    [-1, 0, 7, 5, -3],
+    [0, 0, 7, 4, -3],
+    [-1, 1, 7, 5, -3],
+    [0, 1, 7, 4, -3],
+    [-1, 2, 7, 5, -3],
+    [0, 2, 7, 4, -3],
+    [-1, 3, 7, 5, -3],
+    [-1, 0, 7, 5, -1],
+    [0, 3, 7, 4, -3],
+    [0, 0, 7, 4, -1],
+    [-2, 4, 8, 6, -3],
+    [-3, 1, 3, 5, 0],
+
+
+    // 4/8　草
+    [-2, -3, 5, 4, -2],
+    [-1, -4, 7, 4, -1],
+    [-2, -4, 6, 4, -1],
+
+    // 5/8
+    [-1, -5, 5, 4, 1],
+    [-1, -6, 5, 4, 2],
+    [-1, -5, 6, 4, 1],
+    [-1, -4, 7, 4, 0],
+    [-1, -5, 7, 4, 1],
+
+    // 6/8　干
+    [-2, -6, 7, 4, 0],
+    [-2, -7, 7, 4, 1],
+    [-3, -4, 5, 4, -1],
+    [-2, -5, 7, 4, 0],
+    [-3, -3, 5, 4, -1],
+    [-1, -4, 8, 4, 0],
+    [-3, -4, 5, 4, 0],
+    [-2, -5, 4, 3, 1],
+    [0, -2, 10, 4, -1],
+
+    // 7/8
+    [-2, -2, 8, 3, -3],
+    [-2, -4, 9, 4, -1],
+    [-2, -1, 8, 3, -3],
+    [-2, -3, 9, 4, -1],
+    [-2, 0, 8, 3, -3],
+    [0, 1, 7, 1, -4],
+    [-2, -2, 9, 4, -1],
+
+    // 8/8
+    [-1, -2, 10, 4, -2],
+    [-1, -2, 8, 3, -2],
+    [-2, -2, 9, 4, -2],
+    [-2, -2, 7, 3, -2],
+    [-3, -2, 7, 3, -2],
+    [-2, 0, 6, 1, -4],
+    [-4, -2, 7, 3, -2],
+    [-3, 0, 6, 1, -4],
+    [-5, -2, 7, 3, -2],
+    [-8, -2, 4, 3, -2],
+    [-12, -2, -1, 2, -2],
+
+
+    // 恵 (10)
+
+    // 1/10
+    [3, 14, -4, 0, -6],
+    [3, 18, -2, 0, -9],
+    [4, -3, 1, 1, 4],
+    [4, -6, 1, 1, 6],
+    [4, 3, 6, 2, -1],
+    [3, 19, -2, 0, -9],
+    [3, 4, 6, 3, -1],
+
+    [7, -6, 5, -1, 4],
+    [5, -11, 7, 2, 8],
+    [3, -16, 9, 5, 12],
+
+    [3, 9, 9, 4, -4],
+    [3, 22, 8, 3, -12],
+    [5, 7, 0, 0, 0],
+
+    // transition
+    [3, 5, 8, 4, -1],
+    [3, 4, 7, 3, -1],
+    [2, 6, 3, 3, -1],
+    [1, 5, 0, 3, 1],
+    // [1, 4, 1, 3, 1],
+    [1, 3, 2, 3, 1],
+    [1, 2, 3, 3, 1],
+    [1, 1, 4, 3, 1],
+
+    // 2/10
+    [3, -2, 8, 2, 1],
+    [3, -1, 9, 2, 0],
+    [3, 4, 6, 0, -3],
+    [3, 1, 6, 0, -1],
+    [1, -3, 10, 4, 2],
+    [3, -8, 7, 1, 5],
+    [4, -3, 8, 0, 1],
+    [3, -12, 5, 0, 8],
+
+    // 3/10
+    [4, -7, 9, 2, 4],
+    [2, -8, 7, 3, 6],
+    [2, -4, 6, 3, 4],
+    [0, 3, 3, 3, 1],
+    [2, -5, 6, 3, 5],
+    [2, 0, 6, 3, 2],
+    [2, -6, 6, 3, 6],
+    [2, -8, 8, 4, 7],
+    [2, 11, 11, 4, -6],
+
+    // 3.5/10
+    [6, -5, 9, 0, 3],
+    [5, 2, 7, 0, 0],
+    [0, 13, -2, 0, -2],
+    [5, -1, 8, 0, 1],
+    [2, -1, -1, 0, 6],
+    [1, 6, 0, 0, 1],
+    [1, 7, 0, 0, 0],
+    [2, 4, 2, 0, 1],
+    [4, -2, 7, 0, 2],
+    [3, -3, 3, -1, 4],
+
+    // 4/10
+    [3, 3, 6, 0, -2],
+    [3, 1, 5, 0, 0],
+    [4, -4, 6, 0, 3],
+    [3, 5, 5, 0, -2],
+    [3, 7, 5, 0, -3],
+
+    // transition
+    [3, 10, 7, 0, -6],
+    [2, -1, 4, 0, 2],
+
+    // // 5/10
+    [3, 13, 9, 0, -9],
+    [2, 1, 7, 1, 0],
+    [3, 2, 7, 0, -1],
+    [2, 2, 5, 0, 0],
+    [2, 4, 5, 0, -1],
+
+    // 6/10
+
+    [7, 0, 5, 0, 1],
+    [7, -2, 8, 0, 1],
+    [6, 0, 5, 0, 1],
+    [6, 1, 6, 0, 0],
+
+    [4, 3, 4, 1, 0],
+    [4, 8, 6, 1, -4],
+    [3, -2, 2, 1, 4],
+
+    [3, 3, 4, 1, 0],
+    [3, 8, 6, 1, -4],
+    [2, -2, 2, 1, 4],
+
+    [2, 3, 4, 1, 0],
+    [2, 8, 6, 1, -4],
+
+    [1, 3, 4, 1, 0],
+    [1, 8, 6, 1, -4],
+
+    // [4, -3, 7, 0, 2],
+    [4, 2, 9, 0, -2],
+
+    // 7/10 心
+
+    [-7, 9, -6, 0, -2],
+
+    [-3, 4, 0, 0, -1],
+    [-3, 8, 1, 0, -4],
+
+    [-2, 1, 2, 0, 0],
+    [-2, 5, 3, 0, -3],
+    [2, 1, 5, -2, -2],
+    [3, -3, 8, -1, 0],
+    [-4, 0, 8, 4, 0],
+    [1, -5, 9, 1, 2],
+
+    // 8/10
+    [-8, 10, -9, 0, -1],
+    [-6, 9, -9, -2, -1],
+
+    [-9, 9, -9, 0, 0],
+    [-6, 7, -8, -2, 0],
+    [-3, 5, -7, -4, 0],
+    [0, 3, -6, -6, 0],
+    [3, 1, -5, -8, 0],
+
+    [-4, 4, 0, 0, 0],
+    [0, 0, 2, -2, 1],
+    [4, -4, 4, -4, 2],
+    [-5, 3, 0, 0, 1],
+    [-6, 2, 1, 1, 2],
+    [6, -2, 4, -6, 0],
+    [-6, 1, 1, 1, 3],
+    [8, 0, 4, -8, -2],
+    [-6, 0, 1, 1, 4],
+    [6, -6, 5, -5, 3],
+    [5, -5, 4, -5, 3],
+    [-10, 6, 6, 7, 2],
+    [6, -11, 4, -5, 7],
+    [6, 1, 4, -6, -1],
+    [6, 13, 4, -7, -9],
+    [6, 25, 4, -8, -17],
+    [6, 37, 4, -9, -25],
+    [6, 49, 4, -10, -33],
+    // [-4, 7, -1, 0, 1],
+    // [-4, 14, 0, 0, -4],
+    // [-9, 14, -12, -2, 1],
+    // [-9, 9, -15, -3, 5],
+    // [-9, 4, -18, -4, 9],
+
+    // 9/10
+    [0, 14, 7, 1, -8],
+    [0, 7, -1, -3, -2],
+    [3, 12, 7, -2, -8],
+    [2, 9, 10, 1, -6],
+
+    // transition
+    [-1, 14, 3, 0, -6],
+    [-4, 20, -2, 0, -7],
+    [-7, 26, -7, 0, -8],
+    [-10, 32, -12, 0, -9],
+
+    // 10/10
+    [0, 5, 3, 1, 1],
+    [2, 6, 5, 0, -1],
+    [3, 2, 9, 1, 0],
+    [2, 4, 10, 2, -1],
+];
+
+/**
+ * If true, shows balls at the coordinates specified in {@linkcode DRAW_COORDS} even if they are not
+ * yet drawn.
+ *
+ * @type {boolean}
+ */
+export const DEBUG_DRAWING = false;
+
+/**
+ * The time (in ms) to wait before running {@linkcode updateTonicity} in
+ * {@linkcode HarmonicContext.tick}. Only applicable if {@linkcode HARMONIC_CONTEXT_METHOD} is
+ * 'graph'.
+ */
+export const TARGET_TONICITY_UPDATE_TIME = 220;
+
+/**
+ * Time to wait (in ms) before updating tonicity. after a new note is added to the HarmonicContext.
+ * Only applicable if {@linkcode HARMONIC_CONTEXT_METHOD} is 'graph'.
+ */
+export const TARGET_TONICITY_UPDATE_NEW_NOTE_TIME = 80;
+
+/**
+ * How many origin/root notes to consider when determining candidates for new notes to attach to.
+ *
+ * The top N notes with highest tonicity will be considered.
+ *
+ * If this is set too high, it may lag. If set too low, some intended upper structures may not be
+ * detected correctly.
+ *
+ * Only applicable if {@linkcode HARMONIC_CONTEXT_METHOD} is 'graph'.
+ */
+export const NUM_ROOT_CANDIDATES = 2;
+
+
+/**
+ * The maximum number of notes that can be held in the harmonic context short term memory.
+ */
 export const MAX_SHORT_TERM_MEMORY = 7;
-export const MAX_DISSONANCE = 23;
 
 /**
- * Maximum number of times a compexport constely new note appears in the HarmonicContext
- * before an existing old note is forgotten by the short term memory.
- * The constant chosen (6) is a heuristic stating that up to 7 notes
- * can be contextualised as the 'tonal center', and any more than that
- * will require an older note to be forgotten or recontextualised.
- * Note that the counter disregards octaves of existing notes,
- * so in that sense, this rule is still more permissive than the
- * main `MAX_SHORT_TERM_MEMORY` rule.
- * This just prevents old notes from lingering around too long.
+ * For each note in the harmonic context, this is the maximum number of times a new, non-octave
+ * equivalent note (including tempered octaves, e.g. 125/64 in 12edo) can be added to the
+ * {@linkcode HarmonicContext} before the existing note is forgotten by the short term memory. This
+ * is a heuristic to prevent old notes from lingering too long.
+ *
+ * E.g., if we choose 6 (6 new notes after this one), it is a heuristic stating that from the first
+ * note in the harmonic context, we can up to 6 different notes before this note must be removed
+ * from the harmonic context.
  */
-export const MAX_NEW_NOTES_BEFORE_FORGET = 6;
+export const MAX_NEW_NOTES_BEFORE_FORGET = 12;
 
 /**
- * The maximum time a note in the HarmonicContext can go without being
- * played (nor sustained by pedal) and still be remembered.
+ * The maximum time a note in the HarmonicContext can go without being played (nor sustained by
+ * pedal) and still be remembered.
  *
- * Notes that are still held down (not by sustain ped.) will not be forgotten
- * by virtue of time delay.
+ * Notes that are still held down (not by sustain ped.) will not be forgotten.
  *
- * In the same spirit as `MAX_NEW_NOTES_BEFORE_FORGET`
+ * @see MAX_NEW_NOTES_BEFORE_FORGET
  *
  * @type {number}
  */
-export const MAX_DURATION_BEFORE_FORGET_SECS = 8;
+export const MAX_DURATION_BEFORE_FORGET_SECS = 10;
 
 /**
- * The maximum time a note in the HarmonicContext can exist in STM
- * without being played, but sustained by pedal.
+ * The maximum time a note in the HarmonicContext can exist in STM without being played, but
+ * sustained by pedal.
  *
- * Notes that are still held down (not by sustain ped.) will not be forgotten
- * by virtue of time delay.
+ * Notes that are still held down (not by sustain ped.) will not be forgotten by virtue of time
+ * delay.
  *
  * @type {number}
  */
-export const MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED = 15;
+export const MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED = 30;
 
 /**
- * below the tolerable dissonance score, there will be no fatigue accumulated
-When fatigue accumulates, the effective maximum dissonance decreases
-awaiting a resolution soon.*/
-export const CONSONANCE_THRESHOLD = 12;
+ * This is the maximum permissible dissonance score before the harmonic context tries to delete
+ * notes.
+ *
+ * For the new graph dissonance model, this number should be between 0 and 1.
+ */
+export const MAX_DISSONANCE = 0.75;
 
 /**
- * After at least this many seconds of dissonance above the MAX_TOLERABLE DISSONANCE
-threshold, the effective maximum dissonance drops down to CONSONANCE_THRESHOLD.
-The fatigue increases in proportion to the current dissonance score.
-This simulates the fact that when one is exposed to a continuous
-dissonant sound, one will want to resolve it in their minds.*/
+ * If the harmonic context has N notes, the {@linkcode MAX_DISSONANCE} is effectively set to
+ * `MAX_DISS_N_NOTES[N]`.
+ *
+ * If the number of notes in the harmonic context is greater than the length of this array, the
+ * default {@linkcode MAX_DISSONANCE} is used.
+ *
+ * Useful for harmonic context systems with varying expected dissonance scores depending on the
+ * number of notes.
+ *
+ * The currect settings have been fine tuned for graph/graphdist methods. Remember to save before
+ * changing.
+ */
+export const MAX_DISS_N_NOTES = [1, 1, 0.8, 0.8, 0.65, 0.55, 0.45, 0.4, 0.36];
+
+/**
+ * below the tolerable dissonance score, there will be no fatigue accumulated When fatigue
+ * accumulates, the effective maximum dissonance decreases awaiting a resolution soon.
+ *
+ * For the new graph dissonance model, this number should be between 0 and 1, although for lesser
+ * notes, the dissonance score tends to be higher (e.g. C maj closed triad is 0.5, but C13b5b9 (6
+ * notes) is 0.43, and Cmaj#15 is 0.32)
+   */
+export const CONSONANCE_THRESHOLD = 0.5;
+
+/**
+ * `CONSONANCE_THRESH_N_NOTES[N]` will be the effective value of {@linkcode CONSONANCE_THRESHOLD}
+ * when the harmonic context has N notes.
+ *
+ * If the harmonic context has more notes than the length of this array, the default
+ * {@linkcode CONSONANCE_THRESHOLD} is used.
+ */
+export const CONSONANCE_THRESH_N_NOTES = [1, 1, 0.7, 0.58, 0.5, 0.45, 0.4, 0.35, 0.31];
+
+/**
+ * After at least this many seconds of dissonance above the MAX_TOLERABLE DISSONANCE threshold, the
+   effective maximum dissonance drops down to CONSONANCE_THRESHOLD. The fatigue increases in
+   proportion to the current dissonance score. This simulates the fact that when one is exposed to a
+   continuous dissonant sound, one will want to resolve it in their minds. */
 export const MAX_FATIGUE_SECS = 0.6;
 
 /**
- * Prevents harmonic context from going out of hand
-See HarmonicCoordinates.harmonicDistance() for heuristic implementation.*/
-export const MAX_HARMONIC_DISTANCE = 70;
+ * If true, the stepsFromA is used to determine whether a Ball is part of the pitch memory e(so
+ * multiple sustained balls that are tempered differently will show up as 'chord tones')
+ *
+ * If false, only the exact harmonic coordinate is used to check, so only one 'chord tone' will show
+ * up per pitch memory.
+ */
+export const CHORD_TONE_TEMPERED = false;
+
 /**
- * How much does being a non-chord-tone affect the saturation of a ball.
-the closer the value to zero, the higher the effect. */
-export const NON_CHORD_TONE_SAT_EFFECT = 0.6;
+ * Prevents harmonic context from going out of hand.
+ *
+ * See HarmonicCoordinates.harmonicDistance() for heuristic implementation.
+ *
+ * For reference, here are some intervals and their harmonic distances.
+ *
+ * 2/1      1
+ * 3/2      2.585
+ * 5/3      3.906
+ * 5/4      4.063
+ * 7/4      4.548
+ * 11/8     5.867
+ * 21/20    8.455
+ * 33/32    8.668
+ * 64/63    9.760
+ * 81/80    10.158
+ * 125/128  10.335
+ * */
+export const MAX_HARMONIC_DISTANCE = 10;
 /**
- * How much does being a non-chord-tone affect the size of a ball. */
-export const NON_CHORD_TONE_SIZE_EFFECT = 0.75;
+ * If a {@linkcode Ball} is not part of the {@linkcode HarmonicContext}, multiply its saturation by this. */
+export const NON_CHORD_TONE_SAT_EFFECT = 0.1;
 /**
- * When a key is held, the ball will be at least this size.
+ * Ball size multiplier applied to notes that are no longer in the harmonic context. */
+export const NON_CHORD_TONE_SIZE_EFFECT = 0.6;
+/**
+ * As long as a note is held, the ball will be at least this size indefinitely.
  */
 export const BALL_SUSTAIN_SCALE_FACTOR = 0.04;
 
-export const RESET_TIME_SECS = 3;
+/**
+ * If no notes were played for this long, and no notes are being sustained, reset the visualizer and
+ * delete all context.
+ */
+export const RESET_TIME_SECS = 5;
 
 /**
  * The minimum duration (in seconds) between changes in effectiveOrigin.
@@ -210,17 +689,22 @@ export const HIGHEST_REL_P3_DENOM = 1;
 
 /**
  * Display the interval of the notes on the balls.
- * relmonzo: Display as a monzo relative to the effectiveOrigin
- * relfraction: Display as a fraction relative to the effectiveOrigin.
- * none: don't display the interval.
- * @type {'relmonzo'|'relfraction'|'none'}
+ *
+ * * relmonzo: Display as a monzo relative to the effectiveOrigin
+ * * relfraction: Display as a fraction relative to the effectiveOrigin.
+ * * name: Note name, relative to the effectiveOrigin of the Harmonic Context. Removes comma pumps,
+ *   but keeps JI intervals unique.
+ * * namefraction: Note name initially, but changes to fraction after a certain amount of time.
+ * * none: don't display the interval.
+ *
+ * @type {'relmonzo'|'relfraction'|'name'|'namefraction'|'none'}
  */
-export const TEXT_TYPE = 'relfraction';
+export const TEXT_TYPE = 'namefraction';
 /**
  * Troika font size to ball size ratio
  * @type {number}
  */
-export const TEXT_SIZE = 8;
+export const TEXT_SIZE = 12;
 
 /**
  * @type {'3d'}
@@ -264,12 +748,23 @@ export const CAM_SPEED_HAPPENINGNESS = 3.8;
 export const CAM_ROT_SPEED = 1.5;
 export const MAX_CAM_ROT_SPEED = 1.57;
 export const CAM_ROT_ACCEL = 0.01;
-export const MIN_CAM_DIST = 80;
-export const MAX_CAM_DIST = 400;
-export const CAM_DIST_HAPPENINGNESS = 110;
-export const DIST_STD_DEV_RATIO = 0.11; // Affects standard deviation exponential multiplier
+export const MIN_CAM_DIST = 60;
+export const MAX_CAM_DIST = 300;
+export const CAM_DIST_HAPPENINGNESS = 100;
+export const DIST_STD_DEV_RATIO = 0.07; // Affects standard deviation exponential multiplier
 export const DIST_STD_DEV_CONST = 1.0; // Constant added to std dev inside exponential multiplier
-export const DIST_CHANGE_SPEED = 0.4;
+export const DIST_CHANGE_SPEED = 0.35;
+
+/** If true, use {@link CAMPOS} fixed camera settings. */
+export const FIXED_CAM = false;
+export const CAMPOS = {
+    x: 0,
+    y: 0,
+    z: 200,
+    phi: Math.PI / 2,
+    theta: Math.PI / 2,
+    dist: 200
+}
 
 /**==
  * How much jitter (in vector magnitude) to add when happeningness is maximum.
@@ -290,9 +785,26 @@ export const PARTICLE_MIN_CHANCE = 0.1;
 export const MAX_PARTICLES = 100;
 
 export const MAX_BALLS = 100;
+/**
+ * Maximum size of a ball.
+ */
 export const BALL_SIZE = 9;
+
+/**
+ * Size of permanent drawing balls in the Instanced Mesh as a multiplier of {@linkcode BALL_SIZE}.
+ */
+export const DRAW_BALL_SIZE = 0.71;
+/**
+ * The size of the debug ball that is the target of the centroid particle fountain.
+ */
 export const HARMONIC_CENTROID_SIZE = 0;
+/**
+ * The size of the debug ball that denotes where the absolute harmonic coordinate 1/1 is.
+ */
 export const ORIGIN_SIZE = 0.01;
+/**
+ * Thickness of the scaffolding line.
+ */
 export const LINE_THICKNESS = 1;
 
 /**
@@ -300,9 +812,9 @@ export const LINE_THICKNESS = 1;
 Happeningness diminishes with time and increases with notes.
 */
 window.HAPPENINGNESS = 0;
-export const NOTE_ON_HAPPENINGNESS = 0.08;
-export const HELD_NOTE_HAPPENINGNESS = 0.03;
-export const SUSTAINED_NOTE_HAPPENINGNESS = 0.01;
+export const NOTE_ON_HAPPENINGNESS = 0.03;
+export const HELD_NOTE_HAPPENINGNESS = 0.008;
+export const SUSTAINED_NOTE_HAPPENINGNESS = 0.007;
 
 export function addHappeningness(amt) {
     HAPPENINGNESS = Math.max(0, Math.min(1, HAPPENINGNESS + amt));
@@ -323,6 +835,8 @@ export const PRIME_LOOKUP = (() => {
 /**
  * Lookup of the octave offset of a prime number. (E.g. 3 => 1, 5 => 2, 7 => 2, 11 => 3).
  * Makes octave reduction calculation faster.
+ *
+ * @type {Object<number, number>}
  */
 export const PRIME_OCTAVE_LOOKUP = (() => {
     let x = {};

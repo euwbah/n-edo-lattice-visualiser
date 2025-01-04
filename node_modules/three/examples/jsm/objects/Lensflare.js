@@ -9,10 +9,10 @@ import {
 	Mesh,
 	MeshBasicMaterial,
 	RawShaderMaterial,
+	UnsignedByteType,
 	Vector2,
 	Vector3,
-	Vector4,
-	RGBAFormat
+	Vector4
 } from 'three';
 
 class Lensflare extends Mesh {
@@ -34,8 +34,10 @@ class Lensflare extends Mesh {
 
 		// textures
 
-		const tempMap = new FramebufferTexture( 16, 16, RGBAFormat );
-		const occlusionMap = new FramebufferTexture( 16, 16, RGBAFormat );
+		const tempMap = new FramebufferTexture( 16, 16 );
+		const occlusionMap = new FramebufferTexture( 16, 16 );
+
+		let currentType = UnsignedByteType;
 
 		// material
 
@@ -130,6 +132,7 @@ class Lensflare extends Mesh {
 		const shader = LensflareElement.Shader;
 
 		const material2 = new RawShaderMaterial( {
+			name: shader.name,
 			uniforms: {
 				'map': { value: null },
 				'occlusionMap': { value: occlusionMap },
@@ -163,6 +166,20 @@ class Lensflare extends Mesh {
 
 			renderer.getCurrentViewport( viewport );
 
+			const renderTarget = renderer.getRenderTarget();
+			const type = ( renderTarget !== null ) ? renderTarget.texture.type : UnsignedByteType;
+
+			if ( currentType !== type ) {
+
+				tempMap.dispose();
+				occlusionMap.dispose();
+
+				tempMap.type = occlusionMap.type = type;
+
+				currentType = type;
+
+			}
+
 			const invAspect = viewport.w / viewport.z;
 			const halfViewportWidth = viewport.z / 2.0;
 			const halfViewportHeight = viewport.w / 2.0;
@@ -193,7 +210,7 @@ class Lensflare extends Mesh {
 
 				// save current RGB to temp texture
 
-				renderer.copyFramebufferToTexture( screenPositionPixels, tempMap );
+				renderer.copyFramebufferToTexture( tempMap, screenPositionPixels );
 
 				// render pink quad
 
@@ -205,7 +222,7 @@ class Lensflare extends Mesh {
 
 				// copy result to occlusionMap
 
-				renderer.copyFramebufferToTexture( screenPositionPixels, occlusionMap );
+				renderer.copyFramebufferToTexture( occlusionMap, screenPositionPixels );
 
 				// restore graphics
 
@@ -283,6 +300,8 @@ class LensflareElement {
 }
 
 LensflareElement.Shader = {
+
+	name: 'LensflareElementShader',
 
 	uniforms: {
 

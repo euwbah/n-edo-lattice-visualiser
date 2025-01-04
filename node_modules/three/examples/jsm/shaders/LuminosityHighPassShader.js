@@ -9,6 +9,8 @@ import {
 
 const LuminosityHighPassShader = {
 
+	name: 'LuminosityHighPassShader',
+
 	shaderID: 'luminosityHighPass',
 
 	uniforms: {
@@ -47,9 +49,7 @@ const LuminosityHighPassShader = {
 
 			vec4 texel = texture2D( tDiffuse, vUv );
 
-			vec3 luma = vec3( 0.299, 0.587, 0.114 );
-
-			float v = dot( texel.xyz, luma );
+			float v = luminance( texel.xyz );
 
 			vec4 outputColor = vec4( defaultColor.rgb, defaultOpacity );
 

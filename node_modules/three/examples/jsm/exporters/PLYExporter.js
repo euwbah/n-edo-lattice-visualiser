@@ -1,7 +1,9 @@
 import {
 	Matrix3,
 	Vector3,
-	Color
+	Color,
+	ColorManagement,
+	SRGBColorSpace
 } from 'three';
 
 /**
@@ -19,7 +21,7 @@ import {
 
 class PLYExporter {
 
-	parse( object, onDone, options ) {
+	parse( object, onDone, options = {} ) {
 
 		// Iterate over the valid meshes in the object
 		function traverseMeshes( cb ) {
@@ -97,7 +99,14 @@ class PLYExporter {
 				const geometry = mesh.geometry;
 
 				const vertices = geometry.getAttribute( 'position' );
+				const normals = geometry.getAttribute( 'normal' );
+				const colors = geometry.getAttribute( 'color' );
+
 				vertexCount += vertices.count;
+
+				if ( normals !== undefined ) includeNormals = true;
+
+				if ( colors !== undefined ) includeColors = true;
 
 				includeIndices = false;
 
@@ -295,9 +304,9 @@ class PLYExporter {
 
 						if ( colors != null ) {
 
-							tempColor
-								.fromBufferAttribute( colors, i )
-								.convertLinearToSRGB();
+							tempColor.fromBufferAttribute( colors, i );
+
+							ColorManagement.fromWorkingColorSpace( tempColor, SRGBColorSpace );
 
 							output.setUint8( vOffset, Math.floor( tempColor.r * 255 ) );
 							vOffset += 1;
@@ -454,9 +463,9 @@ class PLYExporter {
 
 						if ( colors != null ) {
 
-							tempColor
-								.fromBufferAttribute( colors, i )
-								.convertLinearToSRGB();
+							tempColor.fromBufferAttribute( colors, i );
+
+							ColorManagement.fromWorkingColorSpace( tempColor, SRGBColorSpace );
 
 							line += ' ' +
 								Math.floor( tempColor.r * 255 ) + ' ' +

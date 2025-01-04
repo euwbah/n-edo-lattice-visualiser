@@ -1,7 +1,7 @@
 {
   "dependencies": {
-    "three": "^0.147.0",
+    "three": "0.171.0",
     "three-nebula": "^10.0.3",
-    "troika-three-text": "^0.47.1"
+    "troika-three-text": "0.52.3"
   }
 }

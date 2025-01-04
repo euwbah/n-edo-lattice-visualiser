@@ -1,18 +1,14 @@
 import {
-	Camera,
 	ClampToEdgeWrapping,
 	DataTexture,
 	FloatType,
-	LinearEncoding,
-	Mesh,
 	NearestFilter,
-	NoToneMapping,
-	PlaneGeometry,
 	RGBAFormat,
-	Scene,
 	ShaderMaterial,
 	WebGLRenderTarget
 } from 'three';
+
+import { FullScreenQuad } from '../postprocessing/Pass.js';
 
 /**
  * GPUComputationRenderer, based on SimulationRenderer by zz85
@@ -50,8 +46,8 @@ import {
  * // and fill in here the texture data...
  *
  * // Add texture variables
- * const velVar = gpuCompute.addVariable( "textureVelocity", fragmentShaderVel, pos0 );
- * const posVar = gpuCompute.addVariable( "texturePosition", fragmentShaderPos, vel0 );
+ * const velVar = gpuCompute.addVariable( "textureVelocity", fragmentShaderVel, vel0 );
+ * const posVar = gpuCompute.addVariable( "texturePosition", fragmentShaderPos, pos0 );
  *
  * // Add variable dependencies
  * gpuCompute.setVariableDependencies( velVar, [ velVar, posVar ] );
@@ -121,20 +117,13 @@ class GPUComputationRenderer {
 
 		let dataType = FloatType;
 
-		const scene = new Scene();
-
-		const camera = new Camera();
-		camera.position.z = 1;
-
 		const passThruUniforms = {
 			passThruTexture: { value: null }
 		};
 
 		const passThruShader = createShaderMaterial( getPassThroughFragmentShader(), passThruUniforms );
 
-		const mesh = new Mesh( new PlaneGeometry( 2, 2 ), passThruShader );
-		scene.add( mesh );
-
+		const quad = new FullScreenQuad( passThruShader );
 
 		this.setDataType = function ( type ) {
 
@@ -172,12 +161,6 @@ class GPUComputationRenderer {
 		};
 
 		this.init = function () {
-
-			if ( renderer.capabilities.isWebGL2 === false && renderer.extensions.has( 'OES_texture_float' ) === false ) {
-
-				return 'No OES_texture_float support for float textures.';
-
-			}
 
 			if ( renderer.capabilities.maxVertexTextures === 0 ) {
 
@@ -292,8 +275,7 @@ class GPUComputationRenderer {
 
 		this.dispose = function () {
 
-			mesh.geometry.dispose();
-			mesh.material.dispose();
+			quad.dispose();
 
 			const variables = this.variables;
 
@@ -301,7 +283,7 @@ class GPUComputationRenderer {
 
 				const variable = variables[ i ];
 
-				variable.initialValueTexture?.dispose();
+				if ( variable.initialValueTexture ) variable.initialValueTexture.dispose();
 
 				const renderTargets = variable.renderTargets;
 
@@ -332,6 +314,7 @@ class GPUComputationRenderer {
 			uniforms = uniforms || {};
 
 			const material = new ShaderMaterial( {
+				name: 'GPUComputationShader',
 				uniforms: uniforms,
 				vertexShader: getPassThroughVertexShader(),
 				fragmentShader: computeFragmentShader
@@ -399,23 +382,16 @@ class GPUComputationRenderer {
 
 			const currentXrEnabled = renderer.xr.enabled;
 			const currentShadowAutoUpdate = renderer.shadowMap.autoUpdate;
-			const currentOutputEncoding = renderer.outputEncoding;
-			const currentToneMapping = renderer.toneMapping;
 
 			renderer.xr.enabled = false; // Avoid camera modification
 			renderer.shadowMap.autoUpdate = false; // Avoid re-computing shadows
-			renderer.outputEncoding = LinearEncoding;
-			renderer.toneMapping = NoToneMapping;
-
-			mesh.material = material;
+			quad.material = material;
 			renderer.setRenderTarget( output );
-			renderer.render( scene, camera );
-			mesh.material = passThruShader;
+			quad.render( renderer );
+			quad.material = passThruShader;
 
 			renderer.xr.enabled = currentXrEnabled;
 			renderer.shadowMap.autoUpdate = currentShadowAutoUpdate;
-			renderer.outputEncoding = currentOutputEncoding;
-			renderer.toneMapping = currentToneMapping;
 
 			renderer.setRenderTarget( currentRenderTarget );
 

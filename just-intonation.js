@@ -1,8 +1,13 @@
 import { PRIME_LOOKUP, PRIME_OCTAVE_LOOKUP, LIST_OF_PRIMES, EDO, USE_OCTAVE_REDUCED_PRIMES } from './configs.js';
+import { mod } from './helpers.js';
 
 function primeFactors(n) {
     const factors = {};
     let divisor = 2;
+
+    if (!Number.isInteger(n)) {
+        return factors;
+    }
 
     while (n >= 2) {
         if (n % divisor === 0) {
@@ -100,15 +105,19 @@ const PRIME_UNIT_VECTORS = (() => {
 
 export class HarmonicCoordinates {
     /**
-     * N-dimensional coords array.
-     * Each element is the power of a prime, starting from 2, then 3, etc...
+     * N-dimensional coords array. Each element is the power of a prime, starting from 2, then 3,
+     * etc...
      *
      * if {@linkcode USE_OCTAVE_REDUCED_PRIMES} is true, all non-octave primes are octave reduced.
-     * E.g., the second element corresponds to powers of (3/2)
-     * third element corresponds to powers of (5/4) etc...
+     * E.g., the second element corresponds to powers of (3/2) third element corresponds to powers
+     * of (5/4) etc...
+     *
+     * This value must be immutable. Do not write directly to this value anywhere else except in the
+     * constructor.
+     *
      * @type {number[]}
      */
-    #coords;
+    _coords;
 
     /**
      * Memoized ratio of this coordinate. Lazily evaluated when {@linkcode toRatio} is called.
@@ -118,36 +127,49 @@ export class HarmonicCoordinates {
     #ratio = null;
 
     /**
-     * Memoized absolute power of 2. Lazily evaluated when {@linkcode p2absolute} is called, or initialized in
-     * constructor if {@linkcode USE_OCTAVE_REDUCED_PRIMES} is `false` making it trivial.
+     * Memoized absolute power of 2. Lazily evaluated when {@linkcode p2absolute} is called, or
+     * initialized in constructor if {@linkcode USE_OCTAVE_REDUCED_PRIMES} is `false` making it
+     * trivial.
      *
      * @type {number}
      */
     #p2absolute = null;
 
     /**
-     * @param {number[]} coords List of powers of primes starting from 2, 3, 5. If {@linkcode USE_OCTAVE_REDUCED_PRIMES}
-     * is `true`, make sure that the first element is the octave reduced power of 2, not the absolute one.
+     * Memoized {@link edosteps} of this coordinate. Lazily evaluated when getter {@linkcode edosteps} is accessed.
+     * @type {number}
+     */
+    #edosteps
+
+    /**
+     * @param {number[]} coords List of powers of primes starting from 2, 3, 5. If
+     * {@linkcode USE_OCTAVE_REDUCED_PRIMES} is `true`, make sure that the first element is the
+     * octave reduced power of 2, not the absolute one.
      *
-     * @param {number} octOffset Pass the calculated octave offset induced by {@linkcode USE_OCTAVE_REDUCED_PRIMES},
-     * so that we don't have to recalculate {@linkcode p2absolute}.
+     * @param {number?} p2absolute If we already calculated the absolute octave offset, pass it so
+     * that we don't have to recalculate {@linkcode HarmonicCoordinates.p2absolute}. Only applicable
+     * if {@linkcode USE_OCTAVE_REDUCED_PRIMES} is `true`.
      */
     constructor(coords, p2absolute = null) {
+        if (coords instanceof HarmonicCoordinates) {
+            coords = coords.coords;
+        }
         coords = coords.slice() || [0]; // copy to prevent mutation of original array (is this worth the performance hit?)
         while (coords.length >= 1 && coords[coords.length - 1] == 0) {
-            // remove trailing zeroes, so that the array length of any two equal HarmonicCoordinates are equal.
-            coords.pop();
+            // remove trailing zeroes, so that the array length of any two equal HarmonicCoordinates
+            // are equal.
+            coords.pop()
         }
         if (coords.length != 0) {
-            this.#coords = Object.freeze(coords);
+            this._coords = Object.freeze(coords);
         }
         else {
-            this.#coords = Object.freeze([0]);
+            this._coords = Object.freeze([0]);
         }
         this.#p2absolute = p2absolute;
 
         if (!USE_OCTAVE_REDUCED_PRIMES) {
-            this.#p2absolute = this.#coords[0];
+            this.#p2absolute = this._coords[0];
         }
     }
 
@@ -161,45 +183,62 @@ export class HarmonicCoordinates {
     }
 
     /**
-     * The serialized JSON object of a {@linkcode HarmonicCoordinates} object is just the {@linkcode coords} array.
+     * The serialized JSON object of a {@linkcode HarmonicCoordinates} object is just the
+     * {@linkcode coords} array.
      * @returns {number[]}
      */
     toJSON() {
-        return this.#coords;
+        return this._coords;
     }
 
     get primeLimit() {
-        return LIST_OF_PRIMES[this.#coords.length - 1];
+        return LIST_OF_PRIMES[this._coords.length - 1];
     }
 
+    /**
+     * N-dimensional coords array. Each element is the power of a prime, starting from 2, then 3,
+     * etc...
+     *
+     * if {@linkcode USE_OCTAVE_REDUCED_PRIMES} is true, all non-octave primes are octave reduced.
+     * E.g., the second element corresponds to powers of (3/2) third element corresponds to powers
+     * of (5/4) etc...
+     * @type {number[]}
+     */
     get coords() {
-        return this.#coords;
+        return this._coords;
+    }
+
+    set coords(_) {
+        throw new Error("HarmonicCoordinates: coords is immutable.");
     }
 
     /**
      * Helper property for getting the power of the first prime (2, octaves).
      */
     get p2() {
-        return this.#coords[0];
+        return this._coords[0];
     }
 
     /**
-     * Helper property for getting power of the second prime (3, or 3/2 if {@linkcode USE_OCTAVE_REDUCED_PRIMES})
+     * Helper property for getting power of the second prime (3, or 3/2 if
+     * {@linkcode USE_OCTAVE_REDUCED_PRIMES})
      */
     get p3() {
-        return this.#coords[1] ?? 0;
+        return this._coords[1] ?? 0;
     }
 
     /**
-     * Absolute power of 2. Will be equal to first element of {@linkcode coords} if {@linkcode USE_OCTAVE_REDUCED_PRIMES}
-     * is `false`.
+     * Absolute power of 2. Will be equal to first element of {@linkcode coords} if
+     * {@linkcode USE_OCTAVE_REDUCED_PRIMES} is `false`.
      *
-     * Otherwise, this value contains the absolute unreduced power of 2, as {@linkcode coords} assume octave reduced primes.
+     * Otherwise, this value contains the absolute unreduced power of 2, as {@linkcode coords}
+     * assume octave reduced primes.
      *
-     * E.g. when octave reduction is active, [0, 1] correspond to 3/2, so `p2absolute` will be `-1`.
+     * E.g. when octave reduction is active, [0, 1] correspond to 3/2, so `p2absolute` will be `-1`
+     * as 1/2 = 2^-1.
      *
-     * This value is lazily evaluated if {@linkcode USE_OCTAVE_REDUCED_PRIMES} is `true` and a precomputed `p2absolute`
-     * value was not passed in the constructor.
+     * This value is lazily evaluated if {@linkcode USE_OCTAVE_REDUCED_PRIMES} is `true` and a
+     * precomputed `p2absolute` value was not passed in the constructor.
      */
     get p2absolute() {
         if (this.#p2absolute !== null)
@@ -217,67 +256,87 @@ export class HarmonicCoordinates {
     }
 
     /**
+     * The number of edosteps this coordinate is from 1/1.
+     * @returns {number}
+     */
+    get edosteps() {
+        if (this.#edosteps !== undefined)
+            return this.#edosteps;
+
+        this.#edosteps = this.toP2AbsoluteArray().reduce((acc, numPrimeIntervals, primeIdx) => acc + numPrimeIntervals * VALS[EDO][primeIdx], 0);
+        return this.#edosteps;
+    }
+
+    /**
      *
-     * @param {HarmonicCoordinates} hc
-     * @returns {HarmonicCoordinates}
+     * @param {this|[number]} hc
+     * @returns {this}
      */
     add(hc) {
+        let coords = (hc instanceof Array) ? hc : hc.coords;
         let newCoords = [];
-        let maxLength = Math.max(this.coords.length, hc.coords.length);
+        let maxLength = Math.max(this.coords.length, coords.length);
         for (let i = 0; i < maxLength; i++) {
             let x = 0;
             if (i < this.coords.length)
                 x += this.coords[i];
-            if (i < hc.coords.length)
-                x += hc.coords[i];
+            if (i < coords.length)
+                x += coords[i];
             newCoords.push(x);
         }
-        return new HarmonicCoordinates(newCoords);
+        return new this.constructor(newCoords);
     }
 
     /**
      *
-     * @param {HarmonicCoordinates} hc
-     * @returns {HarmonicCoordinates}
+     * @param {this|[number]} hc
+     * @returns {this}
      */
     subtract(hc) {
+        let coords = (hc instanceof Array) ? hc : hc.coords;
         let newCoords = [];
-        let maxLength = Math.max(this.coords.length, hc.coords.length);
+        let maxLength = Math.max(this.coords.length, coords.length);
         for (let i = 0; i < maxLength; i++) {
             let x = 0;
             if (i < this.coords.length)
                 x += this.coords[i];
-            if (i < hc.coords.length)
-                x -= hc.coords[i];
+            if (i < coords.length)
+                x -= coords[i];
             newCoords.push(x);
         }
-        return new HarmonicCoordinates(newCoords);
+        return new this.constructor(newCoords);
     }
 
     /**
-     * Returns a new {@linkcode HarmonicCoordinates} with every coordinate element rounded to the nearest integer.
+     * Returns a new {@linkcode HarmonicCoordinates} (or child class) with every coordinate element
+     * rounded to the nearest integer.
      *
      * Useful for quantizing an 'average' harmonic coordinate to a valid point in the lattice.
      *
-     * @return {HarmonicCoordinates}
+     * @return {this}
      */
     round() {
-        return new HarmonicCoordinates(this.coords.map(x => Math.round(x)));
+        return new this.constructor(this.coords.map(x => Math.round(x)));
     }
 
+    /**
+     * @param {number} numerator
+     * @param {number} denominator
+     * @returns {this}
+     */
     static fromRatio(numerator, denominator) {
         let numFacs = primeFactors(numerator);
         let denFacs = primeFactors(denominator);
-        let conjunction = numFacs;
+        let primeUnion = numFacs; // union of prime factors of numerator and denominator
         for (let denPrime in denFacs) {
-            if (denPrime in conjunction) {
-                conjunction[denPrime] -= denFacs[denPrime];
+            if (denPrime in primeUnion) {
+                primeUnion[denPrime] -= denFacs[denPrime];
             } else {
-                conjunction[denPrime] = -denFacs[denPrime];
+                primeUnion[denPrime] = -denFacs[denPrime];
             }
         }
 
-        let coords = [];
+        let coords = [0];
 
         // when octave reduced primes are used, compensate octave offset of each prime so that prime intervals are
         // octave reduced:
@@ -285,8 +344,8 @@ export class HarmonicCoordinates {
         //      5/4: [-2, 0, 1] becomes [0, 0, 1]
         let octOffset = 0;
 
-        for (let prime in conjunction) {
-            let power = conjunction[prime];
+        for (let prime in primeUnion) {
+            let power = primeUnion[prime];
             coords[PRIME_LOOKUP[prime]] = power;
 
             octOffset += PRIME_OCTAVE_LOOKUP[prime] * power;
@@ -300,11 +359,18 @@ export class HarmonicCoordinates {
         let p2abs = coords[0];
         if (USE_OCTAVE_REDUCED_PRIMES) {
             coords[0] += octOffset;
+            // NOTE: There was a bug here where coords was kept empty (the fraction was 1/1), and
+            // because of that, coords[0] is undefined, resulting in [NaN] being passed as coords.
+            // This was fixed only in v0.2.0
         }
 
-        return new HarmonicCoordinates(coords, p2abs);
+        return new this(coords, p2abs);
     }
 
+    /**
+     *
+     * @returns {[number, number]} [numerator, denominator]
+     */
     toRatio() {
         if (this.#ratio !== null)
             return this.#ratio;
@@ -363,11 +429,18 @@ export class HarmonicCoordinates {
     }
 
     /**
+     * @returns {number} The relative frequency multiplier of this interval relative to 1/1.
+     */
+    toMultiplier() {
+        return this.toFrequency(1);
+    }
+
+    /**
      * Monzos always assume non-octave reduced primes.
      * @returns {string}
      */
     toMonzoString() {
-        return `[ ${this.toArrayAbsolute().join(" ")} >`;
+        return `[ ${this.toP2AbsoluteArray().join(" ")} >`;
     }
 
     toString() {
@@ -383,10 +456,12 @@ export class HarmonicCoordinates {
     }
 
     /**
-     * Same as `toArray()` but assuming no octave reduced primes.
-     * Helpful for calculations.
+     * Same as {@linkcode coords} but assuming no octave reduced primes. Helpful for calculations.
+     *
+     * This value will be the same as {@linkcode coords} if {@linkcode USE_OCTAVE_REDUCED_PRIMES} is
+     * `false`.
      */
-    toArrayAbsolute() {
+    toP2AbsoluteArray() {
         return [this.p2absolute, ...this.coords.slice(1)];
     }
 
@@ -426,17 +501,29 @@ export class HarmonicCoordinates {
     }
 
     /**
-     * A heuristic measure to evaluate the distance between two harmonic coordinates.
-     * Use this to ensure that the harmonic context doesn't go haywire.
-     * @param hc
+     * A heuristic measure to evaluate the distance/norm between two {@linkcode HarmonicCoordinates} / {@linkcode NoteName}
+     *
+     * This value is always positive.
+     * @param other {this}
+     *
+     * @see {@linkcode harmonicDistanceFromOrigin}
      */
-    harmonicDistance(hc) {
-        return hc.subtract(this).harmonicDistanceFromOrigin();
+    harmonicDistance(other) {
+        return other.subtract(this).harmonicDistanceFromOrigin();
     }
 
+    /**
+     * The heuristic distance of this coordinate from the origin 1/1.
+     *
+     * This value is always based on non-reduced primes.
+     *
+     * @returns {number}
+     */
     harmonicDistanceFromOrigin() {
         let hDist = 0;
-        this.coords.forEach((pow, idx) => hDist += Math.abs(pow) * Math.log2(LIST_OF_PRIMES[idx]));
+        // TODO: Adjust harmonic distance formula.
+        this.toP2AbsoluteArray().forEach((pow, idx) =>
+            hDist += Math.pow(Math.abs(pow), 0.8) * Math.log2(LIST_OF_PRIMES[idx]));
         return hDist;
 
     }
@@ -446,6 +533,27 @@ export class HarmonicCoordinates {
             return false;
 
         return this.coords.every((x, i) => x == hc.coords[i]);
+    }
+
+    /**
+     * Assumes that this coordinate uses octave reduced primes (3/2, 5/4, 7/4, ...), even when
+     * {@linkcode USE_OCTAVE_REDUCED_PRIMES} is `false`.
+     *
+     * Then, converts the octave reduced primes to absolute primes (3/1, 5/1, 7/1, ...).
+     *
+     * @returns {this}
+     */
+    convOctReducedToAbs() {
+        let coords = this.coords.slice();
+
+        if (USE_OCTAVE_REDUCED_PRIMES) {
+            return new HarmonicCoordinates(this.toP2AbsoluteArray());
+        }
+
+        for (let i = 1; i < coords.length; i++) {
+            coords[0] -= PRIME_OCTAVE_LOOKUP[LIST_OF_PRIMES[i]] * coords[i];
+        }
+        return new this.constructor(coords);
     }
 }
 
@@ -457,12 +565,9 @@ function arrayOfHarmonicCoordinates(fractions) {
     return x;
 }
 
-// Approximate ratios of 31 edo
-// DO NOT MODIFY THE DICT VALUES DURING RUNTIME!!
-//
-// Currently commatic intervals are commented out for testing purposes
-// 'commatic' intervals are assumed to be intervals that one would not instinctively think
-// of using when 1/1 is the assumed 'root note'.
+/**
+ * @type {Object.<number, HarmonicCoordinates[]>}
+ */
 const RATIOS31 = {
     // do
     0: [HarmonicCoordinates.fromRatio(1, 1)],
@@ -569,6 +674,9 @@ const RATIOS31 = {
     ])
 };
 
+/**
+ * @type {Object.<number, HarmonicCoordinates[]>}
+ */
 const RATIOS22 = {
     // do
     0: arrayOfHarmonicCoordinates([
@@ -646,6 +754,90 @@ const RATIOS22 = {
 };
 
 /**
+ * @type {Object.<number, HarmonicCoordinates[]>}
+ */
+const RATIOS12_11LIM = {
+    0: arrayOfHarmonicCoordinates([
+        [1, 1]
+    ]),
+    1: arrayOfHarmonicCoordinates([
+        [16, 15], [15, 14], [135, 128], [2187, 2048], [256, 243]
+    ]),
+    2: arrayOfHarmonicCoordinates([
+        [9, 8], [10, 9], [8, 7]
+    ]),
+    3: arrayOfHarmonicCoordinates([
+        [6, 5], [7, 6], [32, 27]
+    ]),
+    4: arrayOfHarmonicCoordinates([
+        [5, 4], [9, 7], [81, 64]
+    ]),
+    5: arrayOfHarmonicCoordinates([
+        [4, 3]
+    ]),
+    6: arrayOfHarmonicCoordinates([
+        [45, 32], [64, 45], [729, 512], [1024, 729], [7, 5], [10, 7], [11, 8], [16, 11]
+    ]),
+    7: arrayOfHarmonicCoordinates([
+        [3, 2]
+    ]),
+    8: arrayOfHarmonicCoordinates([
+        [8, 5], [128, 81], [25, 16], [14, 9]
+    ]),
+    9: arrayOfHarmonicCoordinates([
+        [5, 3], [27, 16], [12, 7]
+    ]),
+    10: arrayOfHarmonicCoordinates([
+        [16, 9], [9, 5], [7, 4]
+    ]),
+    11: arrayOfHarmonicCoordinates([
+        [15, 8], [243, 128], [28, 15], [256, 135], [486, 256]
+    ]),
+}
+
+/**
+ * @type {Object.<number, HarmonicCoordinates[]>}
+ */
+const RATIOS12 = {
+    0: arrayOfHarmonicCoordinates([
+        [1, 1]
+    ]),
+    1: arrayOfHarmonicCoordinates([
+        [16, 15], [135, 128], [2187, 2048], [256, 243]
+    ]),
+    2: arrayOfHarmonicCoordinates([
+        [9, 8], [10, 9]
+    ]),
+    3: arrayOfHarmonicCoordinates([
+        [6, 5], [32, 27]
+    ]),
+    4: arrayOfHarmonicCoordinates([
+        [5, 4], [81, 64]
+    ]),
+    5: arrayOfHarmonicCoordinates([
+        [4, 3]
+    ]),
+    6: arrayOfHarmonicCoordinates([
+        [45, 32], [64, 45], [729, 512], [1024, 729]
+    ]),
+    7: arrayOfHarmonicCoordinates([
+        [3, 2]
+    ]),
+    8: arrayOfHarmonicCoordinates([
+        [8, 5], [128, 81], [25, 16]
+    ]),
+    9: arrayOfHarmonicCoordinates([
+        [5, 3], [27, 16]
+    ]),
+    10: arrayOfHarmonicCoordinates([
+        [16, 9], [9, 5],
+    ]),
+    11: arrayOfHarmonicCoordinates([
+        [15, 8], [243, 128], [256, 135], [486, 256]
+    ]),
+}
+
+/**
  * Convert edosteps into a list of plausible HarmonicCoordinates.
  *
  * @param {Number} edosteps
@@ -657,9 +849,11 @@ export function convertStepsToPossibleCoord(steps) {
     // the .add function causes this function to return an entirely new copy of HarmonicCoordinates
     // objects so it is now ok to modify the returned coordinates from this function.
     if (EDO == 31)
-        return RATIOS31[edosteps].map(x => x.add(new HarmonicCoordinates([octaves])));
+        return RATIOS31[edosteps].map(x => x.add([octaves]));
     else if (EDO == 22)
-        return RATIOS22[edosteps].map(x => x.add(new HarmonicCoordinates([octaves])));
+        return RATIOS22[edosteps].map(x => x.add([octaves]));
+    else if (EDO == 12)
+        return RATIOS12_11LIM[edosteps].map(x => x.add([octaves]));
     else
         alert("EDO not supported");
 }
@@ -684,4 +878,18 @@ export const EDOSTEPS_TO_FIFTHS_MAP = (() => {
         d = (d + fifthsize) % EDO;
     }
     return x;
+})();
+
+/**
+ * The vals covector that maps (non-octave-reduced) prime intervals to edosteps.
+ *
+ * @type {Object.<number, [number]>}
+ */
+export const VALS = (() => {
+    let vals = {};
+    let primes = [2, 3, 5, 7, 11];
+    for (let edo of [12, 22, 31]) {
+        vals[edo] = primes.map(prime => Math.round(edo * Math.log2(prime)));
+    }
+    return vals;
 })();

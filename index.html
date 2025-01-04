@@ -3,23 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>N EDO Lattice Visualizer</title>
-    <script src="dissonance_wasm.js"></script>
-    <script type="application/javascript">
-        // javascript is dumb
-        function mod(n, m) {
-            return ((n % m) + m) % m;
-        }
-
-        const {calculateDissonance, dissonanceMatrix, findOffender} = wasm_bindgen;
-        let LOADED = false;
-
-        async function init_wasm() {
-            await wasm_bindgen('./dissonance_wasm_bg.wasm');
-            LOADED = true;
-        }
-
-        init_wasm();
-    </script>
     <script type="importmap">
         {
           "imports": {
@@ -33,6 +16,7 @@
           }
         }
     </script>
+    <script type="module" src="./load-diss-wasm.js"></script>
     <script src="node_modules/three-nebula/build/three-nebula.js"></script>
     <style>
         body {
@@ -51,13 +35,26 @@
             color: white;
             font-family: monospace;
             font-size: 12px;
-            color: #11dd33
+            color: #11dd33;
+        }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            opacity: 0.2;
+            z-index: 100;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
     <div id="text"></div>
+    <!-- <img src="calligraph.png" alt="" id="overlay"> -->
     <script src="math.js"></script>
+    <script src="helpers.js" type="module"></script>
     <script src="configs.js" type="module"></script>
     <script src="just-intonation.js" type="module"></script>
     <script src="harmonic-context.js" type="module"></script>

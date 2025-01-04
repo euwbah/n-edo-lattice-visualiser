@@ -3,7 +3,6 @@ import {
 	FloatType,
 	MathUtils,
 	RedFormat,
-	LuminanceFormat,
 	ShaderMaterial,
 	UniformsUtils
 } from 'three';
@@ -15,8 +14,6 @@ class GlitchPass extends Pass {
 	constructor( dt_size = 64 ) {
 
 		super();
-
-		if ( DigitalGlitch === undefined ) console.error( 'THREE.GlitchPass relies on DigitalGlitch' );
 
 		const shader = DigitalGlitch;
 
@@ -41,8 +38,6 @@ class GlitchPass extends Pass {
 	}
 
 	render( renderer, writeBuffer, readBuffer /*, deltaTime, maskActive */ ) {
-
-		if ( renderer.capabilities.isWebGL2 === false ) this.uniforms[ 'tDisp' ].value.format = LuminanceFormat;
 
 		this.uniforms[ 'tDiffuse' ].value = readBuffer.texture;
 		this.uniforms[ 'seed' ].value = Math.random();//default seeding

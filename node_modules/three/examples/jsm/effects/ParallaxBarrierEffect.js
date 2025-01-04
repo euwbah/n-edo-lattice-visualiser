@@ -1,23 +1,16 @@
 import {
 	LinearFilter,
-	Mesh,
 	NearestFilter,
-	OrthographicCamera,
-	PlaneGeometry,
 	RGBAFormat,
-	Scene,
 	ShaderMaterial,
 	StereoCamera,
 	WebGLRenderTarget
 } from 'three';
+import { FullScreenQuad } from '../postprocessing/Pass.js';
 
 class ParallaxBarrierEffect {
 
 	constructor( renderer ) {
-
-		const _camera = new OrthographicCamera( - 1, 1, 1, - 1, 0, 1 );
-
-		const _scene = new Scene();
 
 		const _stereo = new StereoCamera();
 
@@ -68,14 +61,16 @@ class ParallaxBarrierEffect {
 
 				'	}',
 
+				'	#include <tonemapping_fragment>',
+				'	#include <colorspace_fragment>',
+
 				'}'
 
 			].join( '\n' )
 
 		} );
 
-		const mesh = new Mesh( new PlaneGeometry( 2, 2 ), _material );
-		_scene.add( mesh );
+		const _quad = new FullScreenQuad( _material );
 
 		this.setSize = function ( width, height ) {
 
@@ -89,6 +84,8 @@ class ParallaxBarrierEffect {
 		};
 
 		this.render = function ( scene, camera ) {
+
+			const currentRenderTarget = renderer.getRenderTarget();
 
 			if ( scene.matrixWorldAutoUpdate === true ) scene.updateMatrixWorld();
 
@@ -105,7 +102,19 @@ class ParallaxBarrierEffect {
 			renderer.render( scene, _stereo.cameraR );
 
 			renderer.setRenderTarget( null );
-			renderer.render( _scene, _camera );
+			_quad.render( renderer );
+
+			renderer.setRenderTarget( currentRenderTarget );
+
+		};
+
+		this.dispose = function () {
+
+			_renderTargetL.dispose();
+			_renderTargetR.dispose();
+
+			_material.dispose();
+			_quad.dispose();
 
 		};
 

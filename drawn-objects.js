@@ -1,8 +1,9 @@
 import { Text } from "troika-three-text";
-import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, DIST_CHANGE_SPEED, DIST_STD_DEV_CONST, DIST_STD_DEV_RATIO, EDO, FIFTHS_COLOR, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, JI_COLORS, LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SCULPTURE_CAM_DIST, SCULPTURE_CAM_PHI_CYCLES, SCULPTURE_CAM_THETA_CYCLES, SCULPTURE_CYCLE_DURATION, SCULPTURE_MODE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR } from "./configs.js";
+import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAMPOS, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, CHORD_TONE_TEMPERED, DEBUG_DRAWING, DIST_CHANGE_SPEED, DIST_STD_DEV_CONST, DIST_STD_DEV_RATIO, DRAW_BALL_SIZE, DRAW_COORDS, EDO, FIFTHS_COLOR, FIXED_CAM, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, JI_COLORS, LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SCULPTURE_CAM_DIST, SCULPTURE_CAM_PHI_CYCLES, SCULPTURE_CAM_THETA_CYCLES, SCULPTURE_CYCLE_DURATION, SCULPTURE_MODE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR } from "./configs.js";
 import { HarmonicContext } from "./harmonic-context.js";
 import { EDOSTEPS_TO_FIFTHS_MAP, HarmonicCoordinates } from "./just-intonation.js";
 import * as THREE from "three";
+import { mod } from "./helpers.js";
 
 /**
  * Adds jitter to a vector based on {@linkcode HAPPENINGNESS}
@@ -30,12 +31,22 @@ export class Camera {
     camera;
 
     /**
-     * center represents 3D coords of tonal center
+     * The target 3D coords of the centroid of the harmonic context.
+     *
+     * The camera will smoothly move to point towards this point.
+     *
+     * Note: the +ve Z coordinate points outwards from the screen.
      *
      * @type {THREE.Vector3}
      */
     targetCenter = new THREE.Vector3();
     /**
+     * The current smoothed 3D coords of the centroid of the harmonic context.
+     *
+     * The camera will point towards this point.
+     *
+     * Note: the +ve Z coordinate points outwards from the screen.
+     *
      * @type {THREE.Vector3}
      */
     center = new THREE.Vector3();
@@ -54,7 +65,7 @@ export class Camera {
      * x = radius * sin(phi) * cos(theta)
      * z = radius * sin(phi) * sin(theta)
      */
-    theta = 1/2*Math.PI; // start 'in front' of the center point
+    theta = 1 / 2 * Math.PI; // start 'in front' of the center point
 
     /**
      * Stores current yaw rotation speed
@@ -118,14 +129,24 @@ export class Camera {
     tick(stdDeviation) {
         let dt = deltaTime > 1000 ? 1000 : deltaTime;
         if (!SCULPTURE_MODE) {
-            [this.targetCenter.x, this.targetCenter.y, this.targetCenter.z] = this.#harmonicContext.tonalCenterUnscaledCoords;
-            this.center.x += (this.targetCenter.x - this.center.x) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-            this.center.y += (this.targetCenter.y - this.center.y) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
-            this.center.z += (this.targetCenter.z - this.center.z) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+            if (!FIXED_CAM) {
+                [this.targetCenter.x, this.targetCenter.y, this.targetCenter.z] = this.#harmonicContext.tonalCenterUnscaledCoords;
 
-            this.distTarget = MIN_CAM_DIST + Math.exp(stdDeviation * DIST_STD_DEV_RATIO + DIST_STD_DEV_CONST) + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS;
-            this.distTarget = Math.max(MIN_CAM_DIST, Math.min(MAX_CAM_DIST, this.distTarget));
-            this.dist += (this.distTarget - this.dist) * dt / 1000 * DIST_CHANGE_SPEED;
+                this.center.x += (this.targetCenter.x - this.center.x) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+                this.center.y += (this.targetCenter.y - this.center.y) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+                this.center.z += (this.targetCenter.z - this.center.z) * dt / 1000 * (1 + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS) * CAM_SPEED;
+
+                this.distTarget = MIN_CAM_DIST + Math.exp(stdDeviation * DIST_STD_DEV_RATIO + DIST_STD_DEV_CONST) + HAPPENINGNESS * CAM_SPEED_HAPPENINGNESS;
+                this.distTarget = Math.max(MIN_CAM_DIST, Math.min(MAX_CAM_DIST, this.distTarget));
+                this.dist += (this.distTarget - this.dist) * dt / 1000 * DIST_CHANGE_SPEED;
+            } else {
+                this.center.x = CAMPOS.x;
+                this.center.y = CAMPOS.y;
+                this.center.z = CAMPOS.z;
+                this.phi = CAMPOS.phi;
+                this.theta = CAMPOS.theta;
+                this.dist = CAMPOS.dist;
+            }
         }
 
         // Calculate where the camera actually is positioned.
@@ -136,38 +157,54 @@ export class Camera {
         this.camera.position.copy(camPosVec);
         this.camera.lookAt(this.center);
 
-        if (!SCULPTURE_MODE) {
-            // Calculate how to rotate depending on whether the target is left or right of
-            // the current center point. (If left, rotate CCW, if right, rotate CW)
-            let camToCenter = new THREE.Vector3().subVectors(this.center, camPosVec);
-            let targetToCenter = new THREE.Vector3().subVectors(this.center, this.targetCenter);
-            let cross = camToCenter.cross(targetToCenter);
-            let crossDivNormalized = cross.dot(cross.clone().normalize()) * cross.y >= 0 ? 1 : -1;
+        if (!FIXED_CAM) {
+            if (!SCULPTURE_MODE) {
+                // Calculate how to rotate depending on whether the target is left or right of
+                // the current center point. (If left, rotate CCW, if right, rotate CW)
+                let camToCenter = new THREE.Vector3().subVectors(this.center, camPosVec);
+                let targetToCenter = new THREE.Vector3().subVectors(this.center, this.targetCenter);
+                let cross = camToCenter.cross(targetToCenter);
+                let crossDivNormalized = cross.dot(cross.clone().normalize()) * cross.y >= 0 ? 1 : -1;
 
-            // Rotation speed in radians per second
-            let targetRotSpd = HAPPENINGNESS * crossDivNormalized * CAM_ROT_SPEED;
-            targetRotSpd = Math.min(MAX_CAM_ROT_SPEED, Math.abs(targetRotSpd)) * Math.sign(targetRotSpd);
+                // Rotation speed in radians per second
+                let targetRotSpd = HAPPENINGNESS * crossDivNormalized * CAM_ROT_SPEED;
+                targetRotSpd = Math.min(MAX_CAM_ROT_SPEED, Math.abs(targetRotSpd)) * Math.sign(targetRotSpd);
 
-            this.dTheta = CAM_ROT_ACCEL * targetRotSpd + (1 - CAM_ROT_ACCEL) * this.dTheta;
+                this.dTheta = CAM_ROT_ACCEL * targetRotSpd + (1 - CAM_ROT_ACCEL) * this.dTheta;
 
-            this.theta += dt / 1000 * this.dTheta;
-            if (this.theta > 2 * Math.PI) this.theta -= 2 * Math.PI;
+                this.theta += dt / 1000 * this.dTheta;
+                if (this.theta > 2 * Math.PI) this.theta -= 2 * Math.PI;
 
-            this.phi = 0.97 * this.phi + 0.03 * Math.PI * (0.65 - Math.pow(HAPPENINGNESS, 0.7) * 0.25);
+                this.phi = 0.97 * this.phi + 0.03 * Math.PI * (0.65 - Math.pow(HAPPENINGNESS, 0.7) * 0.25);
 
-            this.pointLight.position.set(camX, camY + 50, camZ);
-            this.pointLight.intensity = 30 + 90 * (HAPPENINGNESS);
-        } else {
-            // In sculpture mode, the camera rotates theta once per N animation cycles.
-            let currTime = Date.now();
-            this.theta = (currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_THETA_CYCLES) % 1) * 2 * Math.PI;
-            this.phi = Math.PI * (0.5 + Math.sin(currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_PHI_CYCLES) % 1 * 2 * Math.PI) * 0.1);
-            this.dist = SCULPTURE_CAM_DIST + 50 * Math.sin(currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_THETA_CYCLES) % 1 * 2 * Math.PI);
-            this.pointLight.position.set(camX, camY, camZ);
-            this.pointLight.intensity = 130;
+                this.pointLight.position.set(camX, camY + 50, camZ);
+                this.pointLight.intensity = 30 + 90 * (HAPPENINGNESS);
+            } else {
+                // In sculpture mode, the camera rotates theta once per N animation cycles.
+                let currTime = Date.now();
+                this.theta = (currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_THETA_CYCLES) % 1) * 2 * Math.PI;
+                this.phi = Math.PI * (0.5 + Math.sin(currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_PHI_CYCLES) % 1 * 2 * Math.PI) * 0.1);
+                this.dist = SCULPTURE_CAM_DIST + 50 * Math.sin(currTime / (1000 * SCULPTURE_CYCLE_DURATION * SCULPTURE_CAM_THETA_CYCLES) % 1 * 2 * Math.PI);
+                this.pointLight.position.set(camX, camY, camZ);
+                this.pointLight.intensity = 130;
+            }
         }
     }
 }
+
+/**
+ * Contains a lookup of {@linkcode THREE.Mesh} object UUIDs to {@linkcode Ball} objects.
+ *
+ * If the UUID is for the {@linkcode THREE.InstancedMesh} of balls, the value will instead be an
+ * array of {@linkcode Ball}s (specifically, the one in
+ * {@linkcode BallsManager}`.#listOfPermaDeadBalls`), indexed by the `instanceId`. For the
+ * `InstancedMesh`, `instanceId` is an attribute of the returned object in of the raycaster's
+ * intersect methods.
+ *
+ * @type {Object.<string, Ball | [Ball]>}
+ */
+const MESH_UUID_BALL_DICT = {};
+window.MESH_UUID_BALL_DICT = MESH_UUID_BALL_DICT;
 
 export class Ball {
     /**
@@ -177,7 +214,7 @@ export class Ball {
      */
     harmCoords;
     /**
-     * Harmonic coordinates relative to the effective origin.
+     * Harmonic coordinates relative to {@linkcode HarmonicContext.effectiveOrigin}
      *
      * @type {HarmonicCoordinates}
      */
@@ -198,7 +235,17 @@ export class Ball {
     ballColor;
     size;
     isChordTone = true;
-    isDebug = false; // set this manuallyg to true if the ball is debug and has no relativeHarmCoords.
+    isDebug = false; // set this manually to true if the ball is debug and has no relativeHarmCoords./
+    /**
+     * If true, the ball will stay on the screen indefinitely.
+     * @type {boolean}
+     */
+    isPermanent = false;
+
+    /**
+     * If true, this is a dead permanent ball.
+     */
+    isPermaDead = false;
 
     /**
      * The sphere geometry
@@ -236,15 +283,32 @@ export class Ball {
     #fractionBar;
 
     /**
-     * Common setup between constructor and realive functions.
+     * Which type of text to display on the ball.
+     *
+     * If `TEXT_TYPE` is 'namefraction', this should initially be set to 'name', then 'relfraction'
+     * after a set amount of time.
+     *
+     * @type {'none' | 'relfraction' | 'relmonzo' | 'name'}
+     */
+    #textType = TEXT_TYPE;
+
+    /**
+     * The time at which the ball was constructed or revived.
+     * @type {Date}
+     */
+    #noteOnTime;
+
+    /**
+     * Common setup between constructor and {@linkcode revive} functions.
      *
      * @param {HarmonicCoordinates} harmCoords
      * @param {number} stepsFromA
      * @param {number} presence
      * @param {boolean} isDebug
      */
-    setup(harmCoords, stepsFromA, presence, isDebug) {
+    setup(harmCoords, stepsFromA, presence, isDebug, isPermanent) {
         this.isDebug = isDebug;
+        this.isPermanent = isPermanent;
         this.harmCoords = harmCoords;
         this.#presence = presence;
         this.stepsFromA = stepsFromA;
@@ -254,10 +318,20 @@ export class Ball {
         this.hue = MIN_FIFTH_HUE + (MAX_FIFTH_HUE - MIN_FIFTH_HUE) * EDOSTEPS_TO_FIFTHS_MAP[edosteps] / EDO;
         this.saturation = .95 - .25 * (octaves - 2) / 5 // Let saturation start to fall at octave 2
         this.size = Math.pow(presence, 0.5);
+        this.#noteOnTime = new Date();
+        if (TEXT_TYPE === 'namefraction') {
+            this.#textType = 'name';
+            // name first, fraction later.
+            if (this.#fractionBar) {
+                // reset back to 'name' text display.
+                this.#fractionBar.text = ''; // no fraction bar first.
+                this.#textDisplay.position.set(0, -15, 0); // set to 0, -20, 0 for fraction later.
+            }
+        }
     }
 
-    constructor(harmCoords, stepsFromA, presence, isDebug = false) {
-        this.setup(harmCoords, stepsFromA, presence, isDebug);
+    constructor(harmCoords, stepsFromA, presence, isDebug = false, isPermanent = false) {
+        this.setup(harmCoords, stepsFromA, presence, isDebug, isPermanent);
         this.ballColor = new THREE.Color();
         this.ballColor.setHSL(this.hue, this.saturation, this.lightness);
 
@@ -271,14 +345,15 @@ export class Ball {
             side: THREE.DoubleSide,
         });
         this.#sphereMesh = new THREE.Mesh(this.#geometry, this.#material);
+        MESH_UUID_BALL_DICT[this.#sphereMesh.uuid] = this;
         this.updateDrawing();
 
-        scene.add(this.#sphereMesh);
+        window.scene.add(this.#sphereMesh);
 
         if (!this.isDebug) {
-            if (TEXT_TYPE !== 'none') {
+            if (this.#textType !== 'none') {
                 this.#textDisplay = new Text();
-                this.#textDisplay.position.set(0, TEXT_TYPE === 'relfraction' ? -20 : -15, 0);
+                this.#textDisplay.position.set(0, this.#textType === 'relfraction' ? -20 : -15, 0);
                 this.#textDisplay.fontSize = this.size * TEXT_SIZE;
                 this.#textDisplay.font = "./FiraSansExtralight-AyaD.ttf";
                 this.#textDisplay.textAlign = 'center';
@@ -287,9 +362,9 @@ export class Ball {
                 this.#sphereMesh.add(this.#textDisplay);
             }
 
-            if (TEXT_TYPE === 'relfraction') {
+            if (this.#textType === 'relfraction' || TEXT_TYPE === 'namefraction') {
                 this.#fractionBar = new Text();
-                this.#fractionBar.text = '_';
+                this.#fractionBar.text = TEXT_TYPE === 'namefraction' ? '' : '_';
                 this.#fractionBar.position.set(0, -21, 0);
                 this.#fractionBar.fontSize = this.size * TEXT_SIZE;
                 this.#fractionBar.font = "./FiraSansExtralight-AyaD.ttf";
@@ -311,8 +386,11 @@ export class Ball {
      * @param {number} presence
      * @returns {Ball} this instance
      */
-    realive(harmCoords, stepsFromA, presence) {
-        this.setup(harmCoords, stepsFromA, presence, false);
+    revive(harmCoords, stepsFromA, presence, isPermanent) {
+        if (this.isPermaDead) {
+            throw new Error('Cannot revive a permanently dead ball.');
+        }
+        this.setup(harmCoords, stepsFromA, presence, false, isPermanent);
         this.ballColor.setHSL(this.hue, this.saturation, .36 + .29 * Math.pow(presence, 0.5));
 
         this.#material.opacity = this.isDebug ? 0.3 : this.opacity;
@@ -331,7 +409,7 @@ export class Ball {
     }
 
     get lightness() {
-        return 0.42 + 0.14 * Math.pow(this.presence, 0.5);
+        return 0.29 + 0.26 * Math.pow(this.presence, 0.5);
     }
 
     get opacity() {
@@ -342,10 +420,26 @@ export class Ball {
      * Call this whenever ball is to be set inactive.
      *
      * Removes ball from scene and stops it from updating.
+     *
+     * If this ball is a permanent ball, the Ball class will be marked as permanently dead, and
+     * cannot be {@linkcode revive}d. The geometry and material objects will be disposed.
+     *
+     * However, a permanently dead {@linkcode Ball} class should still be saved in memory as it will
+     * stay on screen, but it should be transformed into an instance in an InstancedMesh.
      */
     kill() {
+        if (this.isPermaDead) return;
         this.#presence = 0;
-        window.scene.remove(this.#sphereMesh);
+        if (this.isPermanent) {
+            // A permanent ball will be converted to an instance in an InstancedMesh.
+            // Delete & free resources.
+            window.scene.remove(this.#sphereMesh);
+            this.#geometry.dispose();
+            this.#material.dispose();
+            this.isPermaDead = true;
+        } else {
+            window.scene.remove(this.#sphereMesh);
+        }
     }
 
     /**
@@ -353,6 +447,13 @@ export class Ball {
      */
     revitalize(presence) {
         this.#presence = presence;
+        this.#noteOnTime = new Date();
+        if (TEXT_TYPE === 'namefraction') {
+            this.#textType = 'name';
+            // reset back to 'name' text display.
+            this.#fractionBar.text = ''; // no fraction bar first.
+            this.#textDisplay.position.set(0, -15, 0); // set to 0, -20, 0 for fraction later.
+        }
     }
 
     updateDrawing() {
@@ -369,7 +470,9 @@ export class Ball {
     tick(keyState, harmonicContext) {
         if (this.isDead) return;
 
-        this.isChordTone = harmonicContext.containsNote(this.stepsFromA);
+        this.isChordTone = CHORD_TONE_TEMPERED ?
+            harmonicContext.containsNote(this.stepsFromA)
+            : harmonicContext.containsHarmCoords(this.harmCoords);
         if (this.stepsFromA in keyState) {
             if (this.presence > BALL_SUSTAIN_SCALE_FACTOR)
                 this.#presence = this.presence * (1 - (2 - HAPPENINGNESS) * deltaTime / 1000);
@@ -411,11 +514,20 @@ export class Ball {
         }
 
         if (this.#textDisplay) {
-            if (TEXT_TYPE === 'relfraction') {
+            if (this.#textType === 'name' && TEXT_TYPE === 'namefraction' && new Date() - this.#noteOnTime > 800) {
+                // after 0.8s, switch note name to fraction.
+                this.#textType = 'relfraction';
+                this.#textDisplay.position.set(0, -20, 0);
+                this.#fractionBar.text = '_';
+            }
+
+            if (this.#textType === 'relfraction') {
                 let [num, den] = this.relativeHarmCoords.toRatio();
                 this.#textDisplay.text = `${num}\n${den}`;
-            } else if (TEXT_TYPE === 'relmonzo') {
+            } else if (this.#textType === 'relmonzo') {
                 this.#textDisplay.text = this.relativeHarmCoords.toMonzoString();
+            } else if (this.#textType === 'name') {
+                this.#textDisplay.text = harmonicContext.getNoteName(this.harmCoords);
             }
             this.#textDisplay.color = textColor;
             this.#textDisplay.lookAt(window.cam.camera.position);
@@ -434,18 +546,6 @@ export class BallsManager {
     balls = {};
 
     /**
-     * Contains list of inactive ball objects
-     *
-     * @type {[Ball]}
-     */
-    #listOfDeadBalls = [];
-
-    /**
-     * The mean of the standard deviation of the x, y (and z, if 3D) coordinates of the balls.
-     */
-    #stddev = 0;
-
-    /**
      * Ball for showing where the origin is.
      *
      * @type {Ball}
@@ -459,12 +559,86 @@ export class BallsManager {
      */
     harmonicCenterBall;
 
+    /**
+     * An instanced mesh for all permanent dead balls & debug drawing balls.
+     *
+     * @type {THREE.InstancedMesh}
+     */
+    #permaDeadMesh;
+
+    /**
+     * Material for instanced mesh.
+     *
+     * @type {THREE.MeshStandardMaterial}
+     */
+    #permaDeadMaterial;
+
+    /**
+     * Geometry for instanced mesh.
+     *
+     * @type {THREE.SphereGeometry}
+     */
+    #permaDeadGeometry;
+
+    /**
+     * Contains list of inactive ball objects
+     *
+     * @type {[Ball]}
+     */
+    #listOfDeadBalls = [];
+
+    /**
+     * Contains list of balls that are permanent but dead.
+     *
+     * The global {@linkcode MESH_UUID_BALL_DICT} of the UUID of the `#permaDeadMesh` will point to
+     * this list, don't update both of them.
+     *
+     * @type {[Ball]}
+     */
+    #listOfPermaDeadBalls = [];
+
+    /**
+     * The mean of the standard deviation of the x, y (and z, if 3D) coordinates of the balls.
+     */
+    #stddev = 0;
+
     constructor() {
         this.originBall = new Ball(new HarmonicCoordinates([0]), 0, ORIGIN_SIZE, true);
         this.originBall.ballColor = new THREE.Color(0xEEEEEE);
         this.originBall.updateDrawing();
 
         this.harmonicCenterBall = new Ball(new HarmonicCoordinates([0]), 0, HARMONIC_CENTROID_SIZE, true);
+
+        this.#permaDeadGeometry = new THREE.SphereGeometry(BALL_SIZE * DRAW_BALL_SIZE, 24, 24);
+        this.#permaDeadMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            metalness: 0,
+            roughness: 0.45,
+            opacity: 0.5,
+            transparent: true,
+            side: THREE.DoubleSide,
+        });
+        this.#permaDeadMesh = new THREE.InstancedMesh(this.#permaDeadGeometry, this.#permaDeadMaterial, DRAW_COORDS.length * 4);
+        this.#permaDeadMesh.count = 0; // we update the count as we add more balls. All instances up to `count` will be drawn.
+        this.#permaDeadMesh.position.set(0, 0, 0);
+        window.scene.add(this.#permaDeadMesh);
+        MESH_UUID_BALL_DICT[this.#permaDeadMesh.uuid] = this.#listOfPermaDeadBalls;
+
+        if (DEBUG_DRAWING) {
+            let positionMatrix = new THREE.Matrix4(); // transform matrix.
+            let color = new THREE.Color();
+            // We add the drawing to the list of perma dead balls as already perma dead.
+            for (let harmCoord of DRAW_COORDS) {
+                let ball = new Ball(new HarmonicCoordinates(harmCoord), 0, 0.6, false, true);
+                ball.kill();
+                this.#listOfPermaDeadBalls.push(ball);
+                positionMatrix.setPosition(ball.pos);
+                this.#permaDeadMesh.setMatrixAt(this.#permaDeadMesh.count, positionMatrix);
+                color.setHSL(this.#permaDeadMesh.count / DRAW_COORDS.length, 0.91, 0.13);
+                this.#permaDeadMesh.setColorAt(this.#permaDeadMesh.count, color);
+                this.#permaDeadMesh.count++;
+            }
+        }
     }
 
     /**
@@ -472,9 +646,10 @@ export class BallsManager {
      * @param {HarmonicCoordinates} harmCoords
      * @param {number} stepsFromA
      * @param {number} velocity
+     * @param {bool}  isPermanent Set to `true` if the ball should stay on the screen indefinitely.
      * @returns {Ball} The ball that was created/reused
      */
-    noteOn(harmCoords, stepsFromA, velocity) {
+    noteOn(harmCoords, stepsFromA, velocity, isPermanent = false) {
         // console.log('ball note on: ', harmCoords.toMonzoString(), stepsFromA, harmCoords);
         let presence = Math.pow(velocity / 127, 1) * 0.9 + 0.1;
         /** @type {Ball} */
@@ -496,7 +671,7 @@ export class BallsManager {
                     this.deleteBall(randomKey);
                     oldBall = this.#listOfDeadBalls.pop();
                 }
-                oldBall.realive(harmCoords, stepsFromA, presence);
+                oldBall.revive(harmCoords, stepsFromA, presence, isPermanent);
 
                 // if there was already an existing ball object in the new location for some reason,
                 // put it into the reserve to prevent memory leaks.
@@ -508,7 +683,7 @@ export class BallsManager {
             }
 
             // otherwise, just make a new ball.
-            let ball = new Ball(harmCoords, stepsFromA, presence);
+            let ball = new Ball(harmCoords, stepsFromA, presence, false, isPermanent);
             // if there was already a ball object in this new location for some reason,
             // delete it.
             this.deleteBall(harmCoords);
@@ -526,8 +701,26 @@ export class BallsManager {
      */
     deleteBall(harmCoords) {
         if (this.balls[harmCoords]) {
-            this.balls[harmCoords].kill();
-            this.#listOfDeadBalls.push(this.balls[harmCoords]);
+            /** @type {Ball} */
+            let toDelete = this.balls[harmCoords];
+            toDelete.kill();
+            if (toDelete.isPermaDead) {
+                this.#listOfPermaDeadBalls.push(toDelete);
+                MESH_UUID_BALL_DICT[this.#permaDeadMesh.uuid] = this.#listOfPermaDeadBalls;
+                let positionMatrix = new THREE.Matrix4();
+                positionMatrix.setPosition(toDelete.pos);
+                this.#permaDeadMesh.setMatrixAt(this.#permaDeadMesh.count, positionMatrix);
+                let color = new THREE.Color();
+                color.setHSL(this.#permaDeadMesh.count / DRAW_COORDS.length, 0.91, 0.13);
+                this.#permaDeadMesh.setColorAt(this.#permaDeadMesh.count, color);
+                this.#permaDeadMesh.count = this.#listOfPermaDeadBalls.length;
+                this.#permaDeadMesh.instanceMatrix.needsUpdate = true;
+                this.#permaDeadMesh.instanceColor.needsUpdate = true;
+                this.#permaDeadMesh.geometry.computeVertexNormals();
+                this.#permaDeadMesh.computeBoundingSphere();
+            } else {
+                this.#listOfDeadBalls.push(toDelete);
+            }
             delete this.balls[harmCoords];
         }
     }
@@ -540,7 +733,9 @@ export class BallsManager {
     tick(keyState, harmonicContext) {
         let xValues = [], yValues = [], zValues = [];
         Object.entries(this.balls).forEach(
-            ([hcKey, ball]) => {
+            ([hcKey, b]) => {
+                /** @type {Ball} */
+                let ball = b;
                 ball.tick(keyState, harmonicContext);
 
                 if (ball.isDead) {
@@ -588,6 +783,13 @@ export class BallsManager {
      */
     get numBallsAlive() {
         return Object.keys(this.balls).length;
+    }
+
+    /**
+     * Number of dead permanent balls.
+     */
+    get numPermaDead() {
+        return this.#listOfPermaDeadBalls.length;
     }
 }
 
@@ -652,7 +854,7 @@ export class KeyCenterParticleFountain {
                 new Nebula.Mass(1),
                 new Nebula.Life(1, 3),
                 new Nebula.Radius(0, 2),
-                new Nebula.Position(new Nebula.SphereZone(0,0,0,1)), // x, y, z, radius
+                new Nebula.Position(new Nebula.SphereZone(0, 0, 0, 1)), // x, y, z, radius
             ])
             .addBehaviours([
             ])
@@ -691,7 +893,7 @@ export class KeyCenterParticleFountain {
         }).setBehaviours([
             new Nebula.Alpha(0.08 + 0.13 * HAPPENINGNESS, 0 + 0.04 * HAPPENINGNESS, Infinity, Nebula.ease.easeInSine),
             new Nebula.RandomDrift(1 + 1 * HAPPENINGNESS, 1 + 1 * HAPPENINGNESS, 1 + 1 * HAPPENINGNESS, 0.1),
-            new Nebula.Repulsion(this.pos, 0.1 + 0.3 * HAPPENINGNESS * HAPPENINGNESS, BALL_SIZE*2, Infinity, Nebula.ease.easeInQuad),
+            new Nebula.Repulsion(this.pos, 0.1 + 0.3 * HAPPENINGNESS * HAPPENINGNESS, BALL_SIZE * 2, Infinity, Nebula.ease.easeInQuad),
             new Nebula.Scale(new Nebula.Span(2 + HAPPENINGNESS, 1), 0),
             new Nebula.Color(
                 color,
@@ -702,10 +904,10 @@ export class KeyCenterParticleFountain {
             new Nebula.Mass(1),
             new Nebula.Life(1 + 1 * HAPPENINGNESS, 2 + 2 * HAPPENINGNESS),
             new Nebula.Radius(0 + HAPPENINGNESS, 1.5 + 1.6 * HAPPENINGNESS),
-            new Nebula.Position(new Nebula.SphereZone(0,0,0, 1 + 13 * HAPPENINGNESS)), // x, y, z, radius
+            new Nebula.Position(new Nebula.SphereZone(0, 0, 0, 1 + 13 * HAPPENINGNESS)), // x, y, z, radius
             new Nebula.RadialVelocity(5, new Nebula.Vector3D(0, 1, 1), 2)
         ]);
-        this.system.update(deltaTime/1000);
+        this.system.update(deltaTime / 1000);
 
         this.pointLight.position.copy(this.pos);
         this.pointLight.color.set(color).addScalar(0.3);
@@ -779,7 +981,7 @@ export class Scaffolding {
     #mesh;
 
     /**
-     * Common setup between scaffolding constructor and realive methods
+     * Common setup between scaffolding constructor and {@linkcode revive} methods
      *
      * @param {HarmonicCoordinates} from
      * @param {HarmonicCoordinates} to
@@ -841,7 +1043,7 @@ export class Scaffolding {
      * @param {Ball} reasonForExisting
      * @returns {Scaffolding} This instance
      */
-    realive(from, to, reasonForExisting) {
+    revive(from, to, reasonForExisting) {
         this.setup(from, to, reasonForExisting);
         window.scene.add(this.#mesh);
         return this;
@@ -851,7 +1053,7 @@ export class Scaffolding {
      * Call this to remove line from scene and stop updating.
      *
      * If this is called even when the {@linkcode reasonForExisting} is still alive,
-     * the scaffolding will still be removed and will stop updating until {@linkcode realive} is called.
+     * the scaffolding will still be removed and will stop updating until {@linkcode revive} is called.
      */
     kill() {
         this.presence = 0;
@@ -945,7 +1147,7 @@ export class ScaffoldingManager {
         this.#deleteLine(fromCoord, toCoord);
         let newScaffolding = this.#deadLines.pop();
         if (newScaffolding) {
-            newScaffolding.realive(fromCoord, toCoord, reasonForExisting);
+            newScaffolding.revive(fromCoord, toCoord, reasonForExisting);
         } else {
             newScaffolding = new Scaffolding(fromCoord, toCoord, reasonForExisting);
         }
@@ -957,7 +1159,7 @@ export class ScaffoldingManager {
      */
     tick() {
         Object.entries(this.#lines).forEach(
-            ([k,line]) => {
+            ([k, line]) => {
                 line.tick();
                 if (line.isDead)
                     this.#deleteLine(line.fromHarmCoords, line.toHarmCoords);
@@ -992,7 +1194,7 @@ export class ScaffoldingManager {
 
             if (curPow == destPow) {
                 // no more difference for this prime, go next.
-                primeIdx ++;
+                primeIdx++;
                 continue;
             }
 
@@ -1005,14 +1207,14 @@ export class ScaffoldingManager {
                 coordAdd[primeIdx] = -1;
             }
 
-            cursor = cursor.add(new HarmonicCoordinates(coordAdd));
+            cursor = cursor.add(coordAdd);
 
             path.push(cursor);
         }
 
         for (let i = 0; i < path.length - 1; i++) {
             let from = path[i];
-            let to = path[i+1];
+            let to = path[i + 1];
 
             this.#createLine(from, to, toBall);
             // console.log('creating line between: ', from.toMonzoString(), to.toMonzoString());

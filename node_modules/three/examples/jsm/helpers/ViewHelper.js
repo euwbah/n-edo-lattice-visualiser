@@ -1,35 +1,53 @@
-import * as THREE from 'three';
+import {
+	CylinderGeometry,
+	CanvasTexture,
+	Color,
+	Euler,
+	Mesh,
+	MeshBasicMaterial,
+	Object3D,
+	OrthographicCamera,
+	Quaternion,
+	Raycaster,
+	Sprite,
+	SpriteMaterial,
+	SRGBColorSpace,
+	Vector2,
+	Vector3,
+	Vector4
+} from 'three';
 
-const vpTemp = new THREE.Vector4();
+class ViewHelper extends Object3D {
 
-class ViewHelper extends THREE.Object3D {
-
-	constructor( editorCamera, dom ) {
+	constructor( camera, domElement ) {
 
 		super();
 
 		this.isViewHelper = true;
 
 		this.animating = false;
-		this.controls = null;
+		this.center = new Vector3();
 
-		const color1 = new THREE.Color( '#ff3653' );
-		const color2 = new THREE.Color( '#8adb00' );
-		const color3 = new THREE.Color( '#2c8fff' );
+		const color1 = new Color( '#ff4466' );
+		const color2 = new Color( '#88ff44' );
+		const color3 = new Color( '#4488ff' );
+		const color4 = new Color( '#000000' );
+
+		const options = {};
 
 		const interactiveObjects = [];
-		const raycaster = new THREE.Raycaster();
-		const mouse = new THREE.Vector2();
-		const dummy = new THREE.Object3D();
+		const raycaster = new Raycaster();
+		const mouse = new Vector2();
+		const dummy = new Object3D();
 
-		const camera = new THREE.OrthographicCamera( - 2, 2, 2, - 2, 0, 4 );
-		camera.position.set( 0, 0, 2 );
+		const orthoCamera = new OrthographicCamera( - 2, 2, 2, - 2, 0, 4 );
+		orthoCamera.position.set( 0, 0, 2 );
 
-		const geometry = new THREE.BoxGeometry( 0.8, 0.05, 0.05 ).translate( 0.4, 0, 0 );
+		const geometry = new CylinderGeometry( 0.04, 0.04, 0.8, 5 ).rotateZ( - Math.PI / 2 ).translate( 0.4, 0, 0 );
 
-		const xAxis = new THREE.Mesh( geometry, getAxisMaterial( color1 ) );
-		const yAxis = new THREE.Mesh( geometry, getAxisMaterial( color2 ) );
-		const zAxis = new THREE.Mesh( geometry, getAxisMaterial( color3 ) );
+		const xAxis = new Mesh( geometry, getAxisMaterial( color1 ) );
+		const yAxis = new Mesh( geometry, getAxisMaterial( color2 ) );
+		const zAxis = new Mesh( geometry, getAxisMaterial( color3 ) );
 
 		yAxis.rotation.z = Math.PI / 2;
 		zAxis.rotation.y = - Math.PI / 2;
@@ -38,28 +56,35 @@ class ViewHelper extends THREE.Object3D {
 		this.add( zAxis );
 		this.add( yAxis );
 
-		const posXAxisHelper = new THREE.Sprite( getSpriteMaterial( color1, 'X' ) );
-		posXAxisHelper.userData.type = 'posX';
-		const posYAxisHelper = new THREE.Sprite( getSpriteMaterial( color2, 'Y' ) );
-		posYAxisHelper.userData.type = 'posY';
-		const posZAxisHelper = new THREE.Sprite( getSpriteMaterial( color3, 'Z' ) );
-		posZAxisHelper.userData.type = 'posZ';
-		const negXAxisHelper = new THREE.Sprite( getSpriteMaterial( color1 ) );
-		negXAxisHelper.userData.type = 'negX';
-		const negYAxisHelper = new THREE.Sprite( getSpriteMaterial( color2 ) );
-		negYAxisHelper.userData.type = 'negY';
-		const negZAxisHelper = new THREE.Sprite( getSpriteMaterial( color3 ) );
-		negZAxisHelper.userData.type = 'negZ';
+		const spriteMaterial1 = getSpriteMaterial( color1 );
+		const spriteMaterial2 = getSpriteMaterial( color2 );
+		const spriteMaterial3 = getSpriteMaterial( color3 );
+		const spriteMaterial4 = getSpriteMaterial( color4 );
+
+		const posXAxisHelper = new Sprite( spriteMaterial1 );
+		const posYAxisHelper = new Sprite( spriteMaterial2 );
+		const posZAxisHelper = new Sprite( spriteMaterial3 );
+		const negXAxisHelper = new Sprite( spriteMaterial4 );
+		const negYAxisHelper = new Sprite( spriteMaterial4 );
+		const negZAxisHelper = new Sprite( spriteMaterial4 );
 
 		posXAxisHelper.position.x = 1;
 		posYAxisHelper.position.y = 1;
 		posZAxisHelper.position.z = 1;
 		negXAxisHelper.position.x = - 1;
-		negXAxisHelper.scale.setScalar( 0.8 );
 		negYAxisHelper.position.y = - 1;
-		negYAxisHelper.scale.setScalar( 0.8 );
 		negZAxisHelper.position.z = - 1;
-		negZAxisHelper.scale.setScalar( 0.8 );
+
+		negXAxisHelper.material.opacity = 0.2;
+		negYAxisHelper.material.opacity = 0.2;
+		negZAxisHelper.material.opacity = 0.2;
+
+		posXAxisHelper.userData.type = 'posX';
+		posYAxisHelper.userData.type = 'posY';
+		posZAxisHelper.userData.type = 'posZ';
+		negXAxisHelper.userData.type = 'negX';
+		negYAxisHelper.userData.type = 'negY';
+		negZAxisHelper.userData.type = 'negZ';
 
 		this.add( posXAxisHelper );
 		this.add( posYAxisHelper );
@@ -75,87 +100,52 @@ class ViewHelper extends THREE.Object3D {
 		interactiveObjects.push( negYAxisHelper );
 		interactiveObjects.push( negZAxisHelper );
 
-		const point = new THREE.Vector3();
+		const point = new Vector3();
 		const dim = 128;
 		const turnRate = 2 * Math.PI; // turn rate in angles per second
 
 		this.render = function ( renderer ) {
 
-			this.quaternion.copy( editorCamera.quaternion ).invert();
+			this.quaternion.copy( camera.quaternion ).invert();
 			this.updateMatrixWorld();
 
 			point.set( 0, 0, 1 );
-			point.applyQuaternion( editorCamera.quaternion );
-
-			if ( point.x >= 0 ) {
-
-				posXAxisHelper.material.opacity = 1;
-				negXAxisHelper.material.opacity = 0.5;
-
-			} else {
-
-				posXAxisHelper.material.opacity = 0.5;
-				negXAxisHelper.material.opacity = 1;
-
-			}
-
-			if ( point.y >= 0 ) {
-
-				posYAxisHelper.material.opacity = 1;
-				negYAxisHelper.material.opacity = 0.5;
-
-			} else {
-
-				posYAxisHelper.material.opacity = 0.5;
-				negYAxisHelper.material.opacity = 1;
-
-			}
-
-			if ( point.z >= 0 ) {
-
-				posZAxisHelper.material.opacity = 1;
-				negZAxisHelper.material.opacity = 0.5;
-
-			} else {
-
-				posZAxisHelper.material.opacity = 0.5;
-				negZAxisHelper.material.opacity = 1;
-
-			}
+			point.applyQuaternion( camera.quaternion );
 
 			//
 
-			const x = dom.offsetWidth - dim;
+			const x = domElement.offsetWidth - dim;
 
 			renderer.clearDepth();
 
-			renderer.getViewport( vpTemp );
+			renderer.getViewport( viewport );
 			renderer.setViewport( x, 0, dim, dim );
 
-			renderer.render( this, camera );
+			renderer.render( this, orthoCamera );
 
-			renderer.setViewport( vpTemp.x, vpTemp.y, vpTemp.z, vpTemp.w );
+			renderer.setViewport( viewport.x, viewport.y, viewport.z, viewport.w );
 
 		};
 
-		const targetPosition = new THREE.Vector3();
-		const targetQuaternion = new THREE.Quaternion();
+		const targetPosition = new Vector3();
+		const targetQuaternion = new Quaternion();
 
-		const q1 = new THREE.Quaternion();
-		const q2 = new THREE.Quaternion();
+		const q1 = new Quaternion();
+		const q2 = new Quaternion();
+		const viewport = new Vector4();
 		let radius = 0;
 
 		this.handleClick = function ( event ) {
 
 			if ( this.animating === true ) return false;
 
-			const rect = dom.getBoundingClientRect();
-			const offsetX = rect.left + ( dom.offsetWidth - dim );
-			const offsetY = rect.top + ( dom.offsetHeight - dim );
-			mouse.x = ( ( event.clientX - offsetX ) / ( rect.width - offsetX ) ) * 2 - 1;
+			const rect = domElement.getBoundingClientRect();
+			const offsetX = rect.left + ( domElement.offsetWidth - dim );
+			const offsetY = rect.top + ( domElement.offsetHeight - dim );
+			mouse.x = ( ( event.clientX - offsetX ) / ( rect.right - offsetX ) ) * 2 - 1;
 			mouse.y = - ( ( event.clientY - offsetY ) / ( rect.bottom - offsetY ) ) * 2 + 1;
 
-			raycaster.setFromCamera( mouse, camera );
+			raycaster.setFromCamera( mouse, orthoCamera );
 
 			const intersects = raycaster.intersectObjects( interactiveObjects );
 
@@ -164,7 +154,7 @@ class ViewHelper extends THREE.Object3D {
 				const intersection = intersects[ 0 ];
 				const object = intersection.object;
 
-				prepareAnimationData( object, this.controls.center );
+				prepareAnimationData( object, this.center );
 
 				this.animating = true;
 
@@ -178,19 +168,38 @@ class ViewHelper extends THREE.Object3D {
 
 		};
 
+		this.setLabels = function ( labelX, labelY, labelZ ) {
+
+			options.labelX = labelX;
+			options.labelY = labelY;
+			options.labelZ = labelZ;
+
+			updateLabels();
+
+		};
+
+		this.setLabelStyle = function ( font, color, radius ) {
+
+			options.font = font;
+			options.color = color;
+			options.radius = radius;
+
+			updateLabels();
+
+		};
+
 		this.update = function ( delta ) {
 
 			const step = delta * turnRate;
-			const focusPoint = this.controls.center;
 
 			// animate position by doing a slerp and then scaling the position on the unit sphere
 
 			q1.rotateTowards( q2, step );
-			editorCamera.position.set( 0, 0, 1 ).applyQuaternion( q1 ).multiplyScalar( radius ).add( focusPoint );
+			camera.position.set( 0, 0, 1 ).applyQuaternion( q1 ).multiplyScalar( radius ).add( this.center );
 
 			// animate orientation
 
-			editorCamera.quaternion.rotateTowards( targetQuaternion, step );
+			camera.quaternion.rotateTowards( targetQuaternion, step );
 
 			if ( q1.angleTo( q2 ) === 0 ) {
 
@@ -230,32 +239,32 @@ class ViewHelper extends THREE.Object3D {
 
 				case 'posX':
 					targetPosition.set( 1, 0, 0 );
-					targetQuaternion.setFromEuler( new THREE.Euler( 0, Math.PI * 0.5, 0 ) );
+					targetQuaternion.setFromEuler( new Euler( 0, Math.PI * 0.5, 0 ) );
 					break;
 
 				case 'posY':
 					targetPosition.set( 0, 1, 0 );
-					targetQuaternion.setFromEuler( new THREE.Euler( - Math.PI * 0.5, 0, 0 ) );
+					targetQuaternion.setFromEuler( new Euler( - Math.PI * 0.5, 0, 0 ) );
 					break;
 
 				case 'posZ':
 					targetPosition.set( 0, 0, 1 );
-					targetQuaternion.setFromEuler( new THREE.Euler() );
+					targetQuaternion.setFromEuler( new Euler() );
 					break;
 
 				case 'negX':
 					targetPosition.set( - 1, 0, 0 );
-					targetQuaternion.setFromEuler( new THREE.Euler( 0, - Math.PI * 0.5, 0 ) );
+					targetQuaternion.setFromEuler( new Euler( 0, - Math.PI * 0.5, 0 ) );
 					break;
 
 				case 'negY':
 					targetPosition.set( 0, - 1, 0 );
-					targetQuaternion.setFromEuler( new THREE.Euler( Math.PI * 0.5, 0, 0 ) );
+					targetQuaternion.setFromEuler( new Euler( Math.PI * 0.5, 0, 0 ) );
 					break;
 
 				case 'negZ':
 					targetPosition.set( 0, 0, - 1 );
-					targetQuaternion.setFromEuler( new THREE.Euler( 0, Math.PI, 0 ) );
+					targetQuaternion.setFromEuler( new Euler( 0, Math.PI, 0 ) );
 					break;
 
 				default:
@@ -265,12 +274,12 @@ class ViewHelper extends THREE.Object3D {
 
 			//
 
-			radius = editorCamera.position.distanceTo( focusPoint );
+			radius = camera.position.distanceTo( focusPoint );
 			targetPosition.multiplyScalar( radius ).add( focusPoint );
 
 			dummy.position.copy( focusPoint );
 
-			dummy.lookAt( editorCamera.position );
+			dummy.lookAt( camera.position );
 			q1.copy( dummy.quaternion );
 
 			dummy.lookAt( targetPosition );
@@ -280,11 +289,13 @@ class ViewHelper extends THREE.Object3D {
 
 		function getAxisMaterial( color ) {
 
-			return new THREE.MeshBasicMaterial( { color: color, toneMapped: false } );
+			return new MeshBasicMaterial( { color: color, toneMapped: false } );
 
 		}
 
-		function getSpriteMaterial( color, text = null ) {
+		function getSpriteMaterial( color, text ) {
+
+			const { font = '24px Arial', color: labelColor = '#000000', radius = 14 } = options;
 
 			const canvas = document.createElement( 'canvas' );
 			canvas.width = 64;
@@ -292,23 +303,40 @@ class ViewHelper extends THREE.Object3D {
 
 			const context = canvas.getContext( '2d' );
 			context.beginPath();
-			context.arc( 32, 32, 16, 0, 2 * Math.PI );
+			context.arc( 32, 32, radius, 0, 2 * Math.PI );
 			context.closePath();
 			context.fillStyle = color.getStyle();
 			context.fill();
 
-			if ( text !== null ) {
+			if ( text ) {
 
-				context.font = '24px Arial';
+				context.font = font;
 				context.textAlign = 'center';
-				context.fillStyle = '#000000';
+				context.fillStyle = labelColor;
 				context.fillText( text, 32, 41 );
 
 			}
 
-			const texture = new THREE.CanvasTexture( canvas );
+			const texture = new CanvasTexture( canvas );
+			texture.colorSpace = SRGBColorSpace;
 
-			return new THREE.SpriteMaterial( { map: texture, toneMapped: false } );
+			return new SpriteMaterial( { map: texture, toneMapped: false } );
+
+		}
+
+		function updateLabels() {
+
+			posXAxisHelper.material.map.dispose();
+			posYAxisHelper.material.map.dispose();
+			posZAxisHelper.material.map.dispose();
+
+			posXAxisHelper.material.dispose();
+			posYAxisHelper.material.dispose();
+			posZAxisHelper.material.dispose();
+
+			posXAxisHelper.material = getSpriteMaterial( color1, options.labelX );
+			posYAxisHelper.material = getSpriteMaterial( color2, options.labelY );
+			posZAxisHelper.material = getSpriteMaterial( color3, options.labelZ );
 
 		}
 

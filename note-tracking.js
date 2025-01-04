@@ -63,28 +63,23 @@ export function noteOn(stepsFromA, vel, harmonicContext, ballManager, scaffoldin
     }
     KEYS_STATE[stepsFromA] = new KeyState(stepsFromA, vel);
 
-    let [fromPitch, relativeRatio] = harmonicContext.registerNote(stepsFromA, explicitCoords);
+    let [fromPitch, relativeRatio, permaDrawnNote] = harmonicContext.registerNote(stepsFromA, vel, explicitCoords);
+    let absCoords = null;
     if (fromPitch === null) {
-        // the harmonic context is fresh.
-        ballManager.noteOn(relativeRatio, stepsFromA, vel);
-
-        if (IS_RECORDING) {
-            if (RECORDED_NOTES.length === 0) {
-                recStartTime = Date.now();
-            }
-            RECORDED_NOTES.push(new RecNote(Date.now() - recStartTime, stepsFromA, relativeRatio));
-        }
+        // either harmonic context was empty, or the new note has no direct relation/jumped (in draw mode)
+        absCoords = relativeRatio;
+        ballManager.noteOn(absCoords, stepsFromA, vel, permaDrawnNote);
     } else {
-        let absoluteRatio = fromPitch.absoluteRatio.add(relativeRatio); // the absolute interval of new ball
-        let newBall = ballManager.noteOn(absoluteRatio, stepsFromA, vel);
+        absCoords = fromPitch.absoluteRatio.add(relativeRatio); // the absolute interval of new ball
+        let newBall = ballManager.noteOn(absCoords, stepsFromA, vel, permaDrawnNote);
         scaffoldingManager.create(fromPitch.absoluteRatio, newBall);
+    }
 
-        if (IS_RECORDING) {
-            if (RECORDED_NOTES.length === 0) {
-                recStartTime = Date.now();
-            }
-            RECORDED_NOTES.push(new RecNote(Date.now() - recStartTime, stepsFromA, absoluteRatio));
+    if (IS_RECORDING) {
+        if (RECORDED_NOTES.length === 0) {
+            recStartTime = Date.now();
         }
+        RECORDED_NOTES.push(new RecNote(Date.now() - recStartTime, stepsFromA, absCoords));
     }
 }
 
