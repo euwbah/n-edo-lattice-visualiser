@@ -17,7 +17,7 @@ export const USE_OCTAVE_REDUCED_PRIMES = true;
  *
  * @type {12 | 22 | 31}
  */
-export const EDO = 31;
+export const EDO = 12;
 document.title = `${EDO} EDO ${EDO == 12 ? 'N' : 11}-limit lattice`;
 
 /**
@@ -26,7 +26,7 @@ document.title = `${EDO} EDO ${EDO == 12 ? 'N' : 11}-limit lattice`;
  *
  * If receiving signals from Seaboard microtuner, set to `false`.
  */
-export const USE_MIDI = false;
+export const USE_MIDI = true;
 
 /**
  * If `true`, use raycasting to identify which ball is being hovered & clicked. Will display ball's
@@ -34,7 +34,7 @@ export const USE_MIDI = false;
  *
  * Use only for demonstration/debugging. Turn this off when performing, extremely laggy.
  */
-export const INTERACTIVE = false;
+export const INTERACTIVE = true;
 
 /**
  * Hardcoded list of primes. Each prime number corresponds to one axis of the lattice.
