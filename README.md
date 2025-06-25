@@ -23,17 +23,26 @@ Intended for use with https://github.com/euwbah/microtonal-seaboard and https://
 
 All the config variables start with `export const` in [`configs.js`](./configs.js).
 
-When running with [microtonal-seaboard](https://github.com/euwbah/microtonal-seaboard) in 22edo/31edo mode:
+**When running with [microtonal-seaboard](https://github.com/euwbah/microtonal-seaboard) in 22edo/31edo mode:**
 
-- `EDO`: set to 22 or 31
+- `EDO`: set to 12, 22 or 31
 - `HARMONIC_CONTEXT_METHOD`: set to `'cb'`, `'l2'`, or `'l2eo'`
 - `SCULPTURE_MODE`: set to `false`
 
-When running with [ji-performer](https://github.com/euwbah/ji-performer/):
+**When running with [ji-performer](https://github.com/euwbah/ji-performer/):**
 
 - `EDO`: set to 12
 - `HARMONIC_CONTEXT_METHOD`: set to `'12ji'`
 - `SCULPTURE_MODE`: set to `false`
+
+When running with a MIDI controller (where midi A4 is the reference pitch):
+
+- `EDO`: set to 12
+- `HARMONIC_CONTEXT_METHOD`: set to `'cb'`, `'l2'`, or `'l2eo'`
+- `SCULPTURE_MODE`: set to `false`
+- `USE_MIDI`: set to `true`
+- A URL hash must be appended to the URL with the MIDI controller ID, which can be found by opening the browser console.
+  - E.g., append `#input-0` to the URL as in https://euwbah.github.io/n-edo-lattice-visualiser/#input-0 if you want to use midi device with the ID `input-0`.
 
 Remember to run the server first (microtonal-seaboard, ji-performer) before loading the visualizer. If nothing shows up, try refreshing, and check the browser developer console (F12, Ctrl+Shift+J) for errors.
 
