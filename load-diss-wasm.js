@@ -1,10 +1,5 @@
 import init, {
-    calculateDissonance,
-    dissonanceMatrix,
-    findOffender,
-    findOffenderGraph,
-    greet,
-    load,
+    loadLookupTables,
     selectCandidate,
     updateTonicity,
 } from './dissonance-wasm/dissonance_wasm.js';
@@ -24,17 +19,10 @@ async function loadDissWasm() {
 
     console.log("dissonance-wasm webassembly loaded!")
 
-    // TODO: uncomment this once finish debugging. Commenting this will postpone computing lookup
-    // tables until the first note.
-
-    load();
+    loadLookupTables();
 
     console.dir(w);
-    window.calculateDissonance = calculateDissonance;
-    window.dissonanceMatrix = dissonanceMatrix;
-    window.findOffender = findOffender;
-    window.findOffenderGraph = findOffenderGraph;
-    window.greet = greet;
+
     window.selectCandidate = selectCandidate;
     window.updateTonicity = updateTonicity;
     window.LOADED = true;

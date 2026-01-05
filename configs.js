@@ -158,7 +158,7 @@ export const JI_COLORS = (() => {
  *
  * @type {'cb' | 'l2' | 'l2eo' | '12ji' | 'graph' | 'graphdist' | 'draw'}
  */
-export const HARMONIC_CONTEXT_METHOD = 'graphdist';
+export const HARMONIC_CONTEXT_METHOD = 'graph';
 
 /**
  * When in 'draw' mode, this array contains the coordinates to draw.
@@ -511,7 +511,7 @@ export const DEBUG_DRAWING = false;
  * {@linkcode HarmonicContext.tick}. Only applicable if {@linkcode HARMONIC_CONTEXT_METHOD} is
  * 'graph'.
  */
-export const TARGET_TONICITY_UPDATE_TIME = 220;
+export const TARGET_TONICITY_UPDATE_TIME = 200;
 
 /**
  * Time to wait (in ms) before updating tonicity. after a new note is added to the HarmonicContext.
@@ -529,7 +529,7 @@ export const TARGET_TONICITY_UPDATE_NEW_NOTE_TIME = 80;
  *
  * Only applicable if {@linkcode HARMONIC_CONTEXT_METHOD} is 'graph'.
  */
-export const NUM_ROOT_CANDIDATES = 2;
+export const NUM_ROOT_CANDIDATES = 3;
 
 
 /**
@@ -592,8 +592,11 @@ export const MAX_DISSONANCE = 0.75;
  *
  * The currect settings have been fine tuned for graph/graphdist methods. Remember to save before
  * changing.
+ *
+ * I have set these values to around mean + 2 * stdev of the dissonance score distributions of random
+ * chords with N notes.
  */
-export const MAX_DISS_N_NOTES = [1, 1, 0.8, 0.8, 0.65, 0.55, 0.45, 0.4, 0.36];
+export const MAX_DISS_N_NOTES = [1, 1, 0.80, 0.65, 0.60, 0.58, 0.56, 0.54, 0.53];
 
 /**
  * below the tolerable dissonance score, there will be no fatigue accumulated When fatigue
@@ -611,8 +614,11 @@ export const CONSONANCE_THRESHOLD = 0.5;
  *
  * If the harmonic context has more notes than the length of this array, the default
  * {@linkcode CONSONANCE_THRESHOLD} is used.
+ *
+ * I have set these values to around mean + 1 * stdev of the dissonance score distributions of random
+ * chords with N notes.
  */
-export const CONSONANCE_THRESH_N_NOTES = [1, 1, 0.7, 0.58, 0.5, 0.45, 0.4, 0.35, 0.31];
+export const CONSONANCE_THRESH_N_NOTES = [1, 1, 0.63, 0.55, 0.53, 0.51, 0.50, 0.49, 0.49];
 
 /**
  * After at least this many seconds of dissonance above the MAX_TOLERABLE DISSONANCE threshold, the
@@ -751,8 +757,8 @@ export const CAM_ROT_ACCEL = 0.01;
 export const MIN_CAM_DIST = 60;
 export const MAX_CAM_DIST = 300;
 export const CAM_DIST_HAPPENINGNESS = 100;
-export const DIST_STD_DEV_RATIO = 0.07; // Affects standard deviation exponential multiplier
-export const DIST_STD_DEV_CONST = 1.0; // Constant added to std dev inside exponential multiplier
+export const DIST_STD_DEV_RATIO = 0.10; // Affects standard deviation exponential multiplier
+export const DIST_STD_DEV_CONST = 1.5; // Constant added to std dev inside exponential multiplier
 export const DIST_CHANGE_SPEED = 0.35;
 
 /** If true, use {@link CAMPOS} fixed camera settings. */

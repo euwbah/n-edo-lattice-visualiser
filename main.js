@@ -339,7 +339,7 @@ function startRandom() {
         setTimeout(() => {
             testOff(offNote);
         }, 1000)
-    }, 80);
+    }, 160);
 }
 
 function stopRandom() {
