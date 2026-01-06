@@ -17,7 +17,7 @@ High-limit free just intonation:
 
 ## How to use
 
-Intended for use with https://github.com/euwbah/microtonal-seaboard and https://github.com/euwbah/ji-performer/.
+Intended for use with https://github.com/euwbah/microtonal-seaboard or https://github.com/euwbah/ji-performer/.
 
 ### Set up & [config file](./configs.js)
 
@@ -35,7 +35,7 @@ All the config variables start with `export const` in [`configs.js`](./configs.j
 - `HARMONIC_CONTEXT_METHOD`: set to `'12ji'`
 - `SCULPTURE_MODE`: set to `false`
 
-When running with a MIDI controller (where midi A4 is the reference pitch):
+**When running with a MIDI controller (where midi A4 is the reference pitch)**:
 
 - `EDO`: set to 12
 - `HARMONIC_CONTEXT_METHOD`: set to `'cb'`, `'l2'`, or `'l2eo'`
