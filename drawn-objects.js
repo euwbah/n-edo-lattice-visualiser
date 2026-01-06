@@ -235,6 +235,7 @@ export class Ball {
     ballColor;
     size;
     isChordTone = true;
+    isRoot = false;
     isDebug = false; // set this manually to true if the ball is debug and has no relativeHarmCoords./
     /**
      * If true, the ball will stay on the screen indefinitely.
@@ -473,6 +474,9 @@ export class Ball {
         this.isChordTone = CHORD_TONE_TEMPERED ?
             harmonicContext.containsNote(this.stepsFromA)
             : harmonicContext.containsHarmCoords(this.harmCoords);
+
+        this.isRoot = harmonicContext.effectiveOrigin.equals(this.harmCoords);
+
         if (this.stepsFromA in keyState) {
             if (this.presence > BALL_SUSTAIN_SCALE_FACTOR)
                 this.#presence = this.presence * (1 - (2 - HAPPENINGNESS) * deltaTime / 1000);
@@ -489,15 +493,17 @@ export class Ball {
 
         let nonChordToneMult = this.isChordTone ? 1 : NON_CHORD_TONE_SAT_EFFECT;
 
+        let rootMult = this.isRoot ? 2 : 1;
+
         this.ballColor.setHSL(
             this.hue,
-            this.saturation * nonChordToneMult,
-            this.lightness,
+            this.saturation * nonChordToneMult * rootMult,
+            this.lightness * rootMult,
         );
 
         this.#material.opacity = this.opacity;
         this.#material.roughness = 0.3 + 0.3 * HAPPENINGNESS;
-        this.size = Math.pow(this.presence, 0.5);
+        this.size = Math.pow(this.presence, 0.5) * rootMult;
         [this.pos.x, this.pos.y, this.pos.z] = this.harmCoords.toUnscaledCoords();
 
         this.updateDrawing();

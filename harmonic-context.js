@@ -483,7 +483,7 @@ export class HarmonicContext {
     /**
      * The pitch object that is closest to the {@linkcode effectiveOrigin} in terms of harmonic
      * distance. Currently, if not in graph/graphdist mode, this value is updated every time
-     * {@linkcode effectiveOrigin} is updated ('key change') in {@linkcode updateStatistics}. In
+     * {@linkcode effectiveOrigin} is updated ('key change') in {@linkcode updateNoteStatistics}. In
      * graph mode, it is updated very often in {@linkcode tick}.
      *
      * The computation for this value in graph mode comes for free (since tonicity is updated every
@@ -493,7 +493,8 @@ export class HarmonicContext {
      * note.
      *
      * Currently, for graph mode, the {@linkcode effectiveOrigin} is always in
-     * {@link shortTermMemory}.
+     * {@linkcode shortTermMemory}.
+     *
      * @type {Pitch}
      */
     pitchNearestToOrigin = null;
@@ -514,7 +515,7 @@ export class HarmonicContext {
     #tonalCenterUnscaledCoords = [0, 0, 0];
 
     /**
-     * Most recently calculated dissonance score. Updated when {@linkcode updateStatistics} is called.
+     * Most recently calculated dissonance score. Updated when {@linkcode updateNoteStatistics} is called.
      *
      * In the new 'graph'/'graphdist' harmonic context method, this value is updated frequently in {@linkcode tick}.
      */
@@ -612,7 +613,7 @@ export class HarmonicContext {
 
     /**
      * Dissonance score as per WASM dissonance calculations, evaluated every time
-     * {@linkcode updateStatistics} is called, or updated during {@linkcode tick} for
+     * {@linkcode updateNoteStatistics} is called, or updated during {@linkcode tick} for
      * 'graph'/'graphdist' harmonic context method.
      *
      * Calculates the dissonance of all the notes in the {@linkcode shortTermMemory}.
@@ -658,6 +659,11 @@ export class HarmonicContext {
     }
 
     /**
+     *
+     * A heuristic of what 1/1 should be in the current harmonic context.
+     *
+     * **In non graph-based harmonic context methods:**
+     *
      * A false origin chosen such that the ratios (w.r.t. effectiveOrigin) of the notes on screen is
      * as simple as possible (minimal monzo numbers). Also used to calculate harmonic distance for
      * {@linkcode HARMONIC_CONTEXT_METHOD} `l2eo` mode.
@@ -669,8 +675,11 @@ export class HarmonicContext {
      * The difference between this `effectiveOrigin` and the centroid HarmonicCoordinates is that
      * the effectiveOrigin has it's harmonic coordinates rounded to the nearest whole number.
      *
-     * For the 'graph'/'graphdist' harmonic context method, this is a heuristic value for the 'tonic' note that
-     * should appear as 1/1.
+     * **In graph-based harmonic context methods:**
+     *
+     * This is the absolute {@linkcode HarmonicCoordinates} with the highest tonicity in the {@linkcode shortTermMemory}, updated
+     * every tick in {@linkcode tick}.
+     *
      * @type {HarmonicCoordinates}
      */
     get effectiveOrigin() {
@@ -765,7 +774,7 @@ export class HarmonicContext {
             }
         }
 
-        /** The maximum dissonance before notes must be removed from {@link shortTermMemory} */
+        /** The maximum dissonance before notes must be removed from {@linkcode shortTermMemory} */
         let maxDiss = MAX_DISS_N_NOTES[this.shortTermMemory.length] ?? MAX_DISSONANCE;
         /** If dissonance exceeds this consonance threshold, fatigue starts to increase */
         let consThresh = CONSONANCE_THRESH_N_NOTES[this.shortTermMemory.length] ?? CONSONANCE_THRESHOLD;
@@ -1382,7 +1391,7 @@ export class HarmonicContext {
 
         // console.log(`Using findOffender: ${(new Date()) - t} ms`);
 
-        this.updateStatistics();
+        this.updateNoteStatistics();
 
         if (drawNote) {
             this.nextDrawTarget();
@@ -1395,20 +1404,13 @@ export class HarmonicContext {
     }
 
     /**
-     * Only put things that don't require constant updating inside this function.
-     * this function is called after noteOn event, {@linkcode registerNote}, is received.
+     * To be called after notes in {@linkcode shortTermMemory} are added/removed.
+     *
+     * Called after noteOn event {@linkcode registerNote}
      */
-    updateStatistics() {
+    updateNoteStatistics() {
         let sumHc = new HarmonicCoordinates([0]);
 
-        // The fifths are in a circle. That means the arithmetic mean can't be used
-        // to calculate the mean fifth as how the average of 30 degrees and 330 degrees
-        // is NOT 180 degrees, but 0 degrees.
-        // To do this, convert the value of the fifths into an angle spanning 0 to 2pi radians,
-        // convert the angle into arbitrary cartesian coordinates along a unit circle,
-        // then find the centroid of the coordinates,
-        // then convert the coordinates back into an angle using atan2.
-        // https://en.wikipedia.org/wiki/Circular_mean
         let avgFifthX = 0;
         let avgFifthY = 0;
 
@@ -1434,6 +1436,15 @@ export class HarmonicContext {
             avgFifthY /= this.shortTermMemory.length;
         }
 
+
+        // The fifths are in a circle. That means the arithmetic mean can't be used to calculate the
+        // mean fifth as how the average of 30 degrees and 330 degrees is NOT 180 degrees, but 0
+        // degrees.
+        //
+        // To do this, convert the value of the fifths into an angle spanning 0 to 2pi
+        // radians, convert the angle into arbitrary cartesian coordinates along a unit circle, then
+        // find the centroid of the coordinates, then convert the coordinates back into an angle
+        // using atan2. https://en.wikipedia.org/wiki/Circular_mean
         if (avgFifthX !== 0 || avgFifthY !== 0) {
             let centralFifthRadians = Math.atan2(avgFifthY, avgFifthX);
             // mod is necessary as central fifth radians returns negative for angles above 180.
