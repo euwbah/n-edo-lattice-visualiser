@@ -1177,7 +1177,7 @@ export class HarmonicContext {
             let graphTonicities = null;
             if (HARMONIC_CONTEXT_METHOD === 'graph') {
                 let results = selectCandidate(candidateRootFreqs, numCandidatesPerPitch, flattenedCandidateRatios, this.tonicityContext, deltaTimeSeconds, NUM_ROOT_CANDIDATES, 0);
-                console.log(`selectCandidate(${JSON.stringify(candidateRootFreqs)}, ${JSON.stringify(numCandidatesPerPitch)}, ${JSON.stringify(flattenedCandidateRatios)}, ${JSON.stringify(this.tonicityContext)}, ${deltaTimeSeconds}, ${NUM_ROOT_CANDIDATES}, 1)`);
+                // console.log(`selectCandidate(${JSON.stringify(candidateRootFreqs)}, ${JSON.stringify(numCandidatesPerPitch)}, ${JSON.stringify(flattenedCandidateRatios)}, ${JSON.stringify(this.tonicityContext)}, ${deltaTimeSeconds}, ${NUM_ROOT_CANDIDATES}, 1)`);
                 [rootIndex, ratioIndex, ...graphTonicities] = results;
                 bestFitRelativeFrom = this.shortTermMemory[rootIndex];
                 bestFitRatio = candidateHarmCoordsRelative[rootIndex][ratioIndex];
