@@ -6,7 +6,8 @@ import init, {
 
 async function loadDissWasm() {
     console.log("Loading dissonance-wasm...")
-    const w = await init("/dissonance-wasm/dissonance_wasm_bg.wasm");
+
+    const w = await init("dissonance-wasm/dissonance_wasm_bg.wasm");
     /*
         REMINDER TO SELF:
 
