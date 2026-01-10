@@ -16,6 +16,17 @@ window.keysState = KEYS_STATE;
 export let SUSTAIN_STATE = false;
 
 export class KeyState {
+    /** @type {number} */
+    stepsFromA;
+    /** @type {number} */
+    vel;
+    /**
+     * If true, indicates that the note is being held only because of the sustain pedal. Otherwise,
+     * this note is currently being physically held down.
+     *
+     * @type {boolean}
+     */
+    fromSustainPedal;
     constructor(stepsFromA, vel) {
         this.stepsFromA = stepsFromA;
         this.vel = vel;

@@ -26,7 +26,7 @@ async function loadDissWasm() {
 
     window.selectCandidate = selectCandidate;
     window.updateTonicity = updateTonicity;
-    window.LOADED = true;
+    window.WASM_LOADED = true;
 }
 
 loadDissWasm();

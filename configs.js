@@ -17,7 +17,7 @@ export const USE_OCTAVE_REDUCED_PRIMES = true;
  *
  * @type {12 | 22 | 31}
  */
-export const EDO = 12;
+export const EDO = 31;
 document.title = `${EDO} EDO ${EDO == 12 ? 'N' : 11}-limit lattice`;
 
 /**
@@ -26,7 +26,7 @@ document.title = `${EDO} EDO ${EDO == 12 ? 'N' : 11}-limit lattice`;
  *
  * If receiving signals from Seaboard microtuner, set to `false`.
  */
-export const USE_MIDI = true;
+export const USE_MIDI = false;
 
 /**
  * If `true`, use raycasting to identify which ball is being hovered & clicked. Will display ball's
@@ -511,13 +511,7 @@ export const DEBUG_DRAWING = false;
  * {@linkcode HarmonicContext.tick}. Only applicable if {@linkcode HARMONIC_CONTEXT_METHOD} is
  * 'graph'.
  */
-export const TARGET_TONICITY_UPDATE_TIME = 200;
-
-/**
- * Time to wait (in ms) before updating tonicity. after a new note is added to the HarmonicContext.
- * Only applicable if {@linkcode HARMONIC_CONTEXT_METHOD} is 'graph'.
- */
-export const TARGET_TONICITY_UPDATE_NEW_NOTE_TIME = 80;
+export const TARGET_TONICITY_UPDATE_TIME = 150;
 
 /**
  * How many origin/root notes to consider when determining candidates for new notes to attach to.
@@ -529,13 +523,25 @@ export const TARGET_TONICITY_UPDATE_NEW_NOTE_TIME = 80;
  *
  * Only applicable if {@linkcode HARMONIC_CONTEXT_METHOD} is 'graph'.
  */
-export const NUM_ROOT_CANDIDATES = 3;
+export const NUM_ROOT_CANDIDATES = 2;
 
+/**
+ * If true, octaves of any note (in terms of edo) always replace existing notes in the short term
+ * memory. Otherwise, this only happens if the new note has a higher tonicity than the existing note.
+ *
+ * For the new `graph` and `graphdist` models only.
+ */
+export const OCTAVES_REPLACE_STM = true;
+
+/**
+ * If true, octaves are allowed in the harmonic context.
+ */
+export const ALLOW_OCTAVES_IN_STM = true;
 
 /**
  * The maximum number of notes that can be held in the harmonic context short term memory.
  */
-export const MAX_SHORT_TERM_MEMORY = 7;
+export const MAX_SHORT_TERM_MEMORY = 8;
 
 /**
  * For each note in the harmonic context, this is the maximum number of times a new, non-octave
@@ -547,7 +553,7 @@ export const MAX_SHORT_TERM_MEMORY = 7;
  * note in the harmonic context, we can up to 6 different notes before this note must be removed
  * from the harmonic context.
  */
-export const MAX_NEW_NOTES_BEFORE_FORGET = 12;
+export const MAX_NEW_NOTES_BEFORE_FORGET = 19;
 
 /**
  * The maximum time a note in the HarmonicContext can go without being played (nor sustained by
@@ -559,7 +565,7 @@ export const MAX_NEW_NOTES_BEFORE_FORGET = 12;
  *
  * @type {number}
  */
-export const MAX_DURATION_BEFORE_FORGET_SECS = 10;
+export const MAX_DURATION_BEFORE_FORGET_SECS = 100;
 
 /**
  * The maximum time a note in the HarmonicContext can exist in STM without being played, but
@@ -570,7 +576,7 @@ export const MAX_DURATION_BEFORE_FORGET_SECS = 10;
  *
  * @type {number}
  */
-export const MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED = 30;
+export const MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED = 240;
 
 /**
  * This is the maximum permissible dissonance score before the harmonic context tries to delete
@@ -596,7 +602,7 @@ export const MAX_DISSONANCE = 0.75;
  * I have set these values to around mean + 2 * stdev of the dissonance score distributions of random
  * chords with N notes.
  */
-export const MAX_DISS_N_NOTES = [1, 1, 0.80, 0.65, 0.60, 0.58, 0.56, 0.54, 0.53];
+export const MAX_DISS_N_NOTES = [1, 1, 0.80, 0.7, 0.67, 0.63, 0.6, 0.57, 0.55];
 
 /**
  * below the tolerable dissonance score, there will be no fatigue accumulated When fatigue
@@ -618,14 +624,14 @@ export const CONSONANCE_THRESHOLD = 0.5;
  * I have set these values to around mean + 1 * stdev of the dissonance score distributions of random
  * chords with N notes.
  */
-export const CONSONANCE_THRESH_N_NOTES = [1, 1, 0.63, 0.55, 0.53, 0.51, 0.50, 0.49, 0.49];
+export const CONSONANCE_THRESH_N_NOTES = [1, 1, 0.7, 0.65, 0.63, 0.55, 0.53, 0.51, 0.50];
 
 /**
  * After at least this many seconds of dissonance above the MAX_TOLERABLE DISSONANCE threshold, the
    effective maximum dissonance drops down to CONSONANCE_THRESHOLD. The fatigue increases in
    proportion to the current dissonance score. This simulates the fact that when one is exposed to a
    continuous dissonant sound, one will want to resolve it in their minds. */
-export const MAX_FATIGUE_SECS = 0.6;
+export const MAX_FATIGUE_SECS = 2.7;
 
 /**
  * If true, the stepsFromA is used to determine whether a Ball is part of the pitch memory e(so
@@ -637,7 +643,8 @@ export const MAX_FATIGUE_SECS = 0.6;
 export const CHORD_TONE_TEMPERED = false;
 
 /**
- * Prevents harmonic context from going out of hand.
+ * Prevents harmonic context from going out of hand by limiting the maximum distance between any two
+ * notes in the harmonic context. Octaves count as distance 1.
  *
  * See HarmonicCoordinates.harmonicDistance() for heuristic implementation.
  *
@@ -655,13 +662,13 @@ export const CHORD_TONE_TEMPERED = false;
  * 81/80    10.158
  * 125/128  10.335
  * */
-export const MAX_HARMONIC_DISTANCE = 10;
+export const MAX_HARMONIC_DISTANCE = 13.5;
 /**
  * If a {@linkcode Ball} is not part of the {@linkcode HarmonicContext}, multiply its saturation by this. */
-export const NON_CHORD_TONE_SAT_EFFECT = 0.1;
+export const NON_CHORD_TONE_SAT_EFFECT = 0.4;
 /**
  * Ball size multiplier applied to notes that are no longer in the harmonic context. */
-export const NON_CHORD_TONE_SIZE_EFFECT = 0.6;
+export const NON_CHORD_TONE_SIZE_EFFECT = 0.4;
 /**
  * As long as a note is held, the ball will be at least this size indefinitely.
  */
@@ -677,7 +684,7 @@ export const RESET_TIME_SECS = 5;
  * The minimum duration (in seconds) between changes in effectiveOrigin.
  * @type {number}
  */
-export const FASTEST_KEY_CHANGE_SECS = 1.5;
+export const FASTEST_KEY_CHANGE_SECS = 1.0;
 
 /**
  * Sets effectiveOrigin such that the highest power of 2 permissible in the denominator
@@ -710,7 +717,7 @@ export const TEXT_TYPE = 'namefraction';
  * Troika font size to ball size ratio
  * @type {number}
  */
-export const TEXT_SIZE = 12;
+export const TEXT_SIZE = 14;
 
 /**
  * @type {'3d'}
@@ -756,9 +763,9 @@ export const MAX_CAM_ROT_SPEED = 1.57;
 export const CAM_ROT_ACCEL = 0.01;
 export const MIN_CAM_DIST = 60;
 export const MAX_CAM_DIST = 300;
-export const CAM_DIST_HAPPENINGNESS = 100;
-export const DIST_STD_DEV_RATIO = 0.10; // Affects standard deviation exponential multiplier
-export const DIST_STD_DEV_CONST = 1.5; // Constant added to std dev inside exponential multiplier
+export const CAM_DIST_HAPPENINGNESS = 90;
+export const DIST_STD_DEV_RATIO = 0.08; // Affects standard deviation exponential multiplier
+export const DIST_STD_DEV_CONST = 1.2; // Constant added to std dev inside exponential multiplier
 export const DIST_CHANGE_SPEED = 0.35;
 
 /** If true, use {@link CAMPOS} fixed camera settings. */
@@ -794,7 +801,7 @@ export const MAX_BALLS = 100;
 /**
  * Maximum size of a ball.
  */
-export const BALL_SIZE = 9;
+export const BALL_SIZE = 11;
 
 /**
  * Size of permanent drawing balls in the Instanced Mesh as a multiplier of {@linkcode BALL_SIZE}.
@@ -811,15 +818,18 @@ export const ORIGIN_SIZE = 0.01;
 /**
  * Thickness of the scaffolding line.
  */
-export const LINE_THICKNESS = 1;
+export const MAX_LINE_THICKNESS = 1;
+
+/** Minimum thickness of the scaffolding line. */
+export const MIN_LINE_THICKNESS = 0.03;
 
 /**
  * A global value between 0-1 representing how happening the music is.
 Happeningness diminishes with time and increases with notes.
 */
 window.HAPPENINGNESS = 0;
-export const NOTE_ON_HAPPENINGNESS = 0.03;
-export const HELD_NOTE_HAPPENINGNESS = 0.008;
+export const NOTE_ON_HAPPENINGNESS = 0.07;
+export const HELD_NOTE_HAPPENINGNESS = 0.009;
 export const SUSTAINED_NOTE_HAPPENINGNESS = 0.007;
 
 export function addHappeningness(amt) {

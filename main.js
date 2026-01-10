@@ -1,22 +1,31 @@
-import * as THREE from 'three';
+import * as THREE from 'three/webgpu';
 import { HarmonicContext } from './harmonic-context.js';
 import * as NoteTracking from './note-tracking.js';
 import { BallsManager, Camera, KeyCenterParticleFountain, ScaffoldingManager } from './drawn-objects.js';
 import { HARMONIC_CONTEXT_METHOD, USE_MIDI, HELD_NOTE_HAPPENINGNESS, MAX_SHORT_TERM_MEMORY, SCULPTURE_MODE, SCULPTURE_PX_DENSITY, SUSTAINED_NOTE_HAPPENINGNESS, VERSION, addHappeningness, INTERACTIVE } from './configs.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { DebugEnvironment } from 'three/addons/environments/DebugEnvironment.js';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { SSRPass } from 'three/addons/postprocessing/SSRPass.js';
-import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+// import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+// import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+// import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+// import { SSRPass } from 'three/addons/postprocessing/SSRPass.js';
+// import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { Sculpture } from './sculpture.js';
+import { PostProcessing, WebGPURenderer } from 'three/webgpu';
+import { Font, FontLoader } from 'three/addons/loaders/FontLoader.js';
+import { pass, mrt, output, emissive, uniform } from 'three/tsl';
+import GaussianBlurNode, { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js'
+import BloomNode, { bloom } from 'three/addons/tsl/display/BloomNode.js';
 
 /**
  * @type {THREE.Scene}
  */
 let scene = new THREE.Scene();
 window.scene = scene;
+
+
+const fontloader = new FontLoader();
+window.FONT = await fontloader.loadAsync("Fira Sans ExtraLight_Regular.json")
 
 const socket = !USE_MIDI ? new WebSocket('ws://127.0.0.1:8765') : null;
 
@@ -40,10 +49,11 @@ document.addEventListener('mousemove', (event) => {
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 });
 
-const renderer = new THREE.WebGLRenderer({
+const renderer = new WebGPURenderer({
     antialias: true,
     powerPreference: 'high-performance',
-});
+})
+window.renderer = renderer;
 
 let pxDensity = window.devicePixelRatio * SCULPTURE_MODE ? SCULPTURE_PX_DENSITY : 1;
 
@@ -52,38 +62,38 @@ renderer.physicallyCorrectLights = true;
 renderer.toneMapping = THREE.ReinhardToneMapping;
 renderer.toneMappingExposure = 1;
 
-renderer.setSize(window.innerWidth * pxDensity, window.innerHeight * pxDensity, false);
+renderer.setPixelRatio(pxDensity);
+renderer.setSize(window.innerWidth, window.innerHeight, false);
 document.body.appendChild(renderer.domElement);
+await renderer.init();
 
 // setting up stuff for postprocessing
 
-/** @type {EffectComposer} */
-const composer = new EffectComposer(renderer);
-const renderPass = new RenderPass(scene, cameraObject.camera);
-composer.addPass(renderPass);
+/** @type {PostProcessing | null} */
+let scenePass = pass(scene, cameraObject.camera);
+scenePass.setMRT( mrt({
+    output,
+    emissive
+}));
+const outputPass = scenePass.getTextureNode().toInspector("Color");
+const emissivePass = scenePass.getTextureNode("emissive").toInspector("Emissive");
 
-const ssrPass = new SSRPass({
-    renderer,
-    scene,
-    camera: cameraObject.camera,
-    width: window.innerWidth,
-    height: window.innerHeight
-});
-ssrPass.thickness = 0.018;
-ssrPass.bouncing = true;
-ssrPass.fresnel = true;
-ssrPass.maxDistance = 10;
-composer.addPass(ssrPass);
+/** @type {BloomNode} */
+const bloomPass = bloom(outputPass, 2.5, 1.0);
 
-const blurPass = new BokehPass(scene, cameraObject.camera, {
-    focus: 1.0,
-    aperture: 2.7,
-    maxblur: 0
-});
-composer.addPass(blurPass);
+/** @type {GaussianBlurNode} */
+let blurPass = gaussianBlur(outputPass.add(bloomPass), uniform(1.0), 4);
 
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0, 0.02, 0);
-composer.addPass(bloomPass);
+let postProcessing = new PostProcessing(renderer);
+postProcessing.outputNode = blurPass;
+
+const renderScene = () => {
+    if (postProcessing) {
+        postProcessing.render();
+    } else {
+        renderer.render(scene, cameraObject.camera);
+    }
+};
 
 if (socket != null) {
     socket.onopen = (e) => {
@@ -92,7 +102,7 @@ if (socket != null) {
 
     socket.onmessage = (e) => {
         // only start reading socket messages when WASM is loaded
-        if (LOADED) {
+        if (window.WASM_LOADED) {
             // rest will contian exact harmonic coordinate data for 12ji harmonic context mode.
             /**
              *
@@ -179,7 +189,13 @@ if (socket != null) {
 }
 
 function testOn(stepsFromA, coords = null) {
-    NoteTracking.noteOn(stepsFromA, 127, harmonicContext, ballManager, scaffoldingManager, coords);
+    if (typeof stepsFromA === 'object') {
+        for (let sfA of stepsFromA) {
+            testOn(sfA);
+        }
+    } else {
+        NoteTracking.noteOn(stepsFromA, 127, harmonicContext, ballManager, scaffoldingManager, coords);
+    }
 }
 
 function testOff(stepsFromA) {
@@ -191,9 +207,11 @@ window.off = testOff;
 
 window.addEventListener('resize', () => {
     cameraObject.updateAspectRatio();
-    ssrPass.setSize(window.innerWidth, window.innerHeight);
     bloomPass.setSize(window.innerWidth, window.innerHeight);
-    renderer.setSize(window.innerWidth * pxDensity, window.innerHeight * pxDensity, false);
+    // emissivePass.setSize(window.innerWidth, window.innerHeight);
+    blurPass.setSize(window.innerWidth, window.innerHeight);
+    // outputPass.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(window.innerWidth, window.innerHeight, false);
 }, false);
 
 let clock = new THREE.Clock();
@@ -201,12 +219,13 @@ let clock = new THREE.Clock();
 window.ambientLight = new THREE.AmbientLight(0xffffff, 5);
 scene.add(ambientLight);
 
-let pmremgen = new THREE.PMREMGenerator(renderer);
-pmremgen.compileCubemapShader();
-
 const envScene = new RoomEnvironment();
 
-let envTexTarget = pmremgen.fromScene(envScene);
+let pmremgen = null;
+let envTexTarget = null;
+pmremgen = new THREE.PMREMGenerator(renderer);
+pmremgen.compileCubemapShader();
+envTexTarget = pmremgen.fromScene(envScene);
 scene.environment = envTexTarget.texture;
 // scene.background = envTexTarget.texture;
 
@@ -233,8 +252,7 @@ let lastFPSUpdateTime = new Date();
 let numFramesSinceLastFPSUpdateTime = 0;
 window.FPS = 0;
 
-function animate() {
-    requestAnimationFrame(animate);
+const animate = () => {
     numFramesSinceLastFPSUpdateTime++;
     let now = new Date();
     if (now - lastFPSUpdateTime > 500) {
@@ -258,12 +276,16 @@ function animate() {
         cameraObject.center.copy(sculpture.centroid);
         sculpture.tick();
         renderer.toneMappingExposure = 1.2;
-        bloomPass.threshold = 0;
-        bloomPass.strength = 1.4;
-        bloomPass.radius = 0.05;
-        blurPass.uniforms['maxblur'].value = 0.1;
+        if (bloomPass) {
+            bloomPass.threshold.value = 0;
+            bloomPass.strength.value = 1.4;
+            bloomPass.radius.value = 0.05;
+        }
+        if (blurPass) {
+            blurPass.directionNode.value = 0.1;
+        }
 
-        composer.render();
+        renderScene();
     } else {
         let [held, sustained] = NoteTracking.countExistingKeysState();
         addHappeningness(deltaTime / 4000 * (held * HELD_NOTE_HAPPENINGNESS + sustained * SUSTAINED_NOTE_HAPPENINGNESS));
@@ -277,15 +299,16 @@ function animate() {
 
         // Update shader settings
         renderer.toneMappingExposure = 1.1 + HAPPENINGNESS * 0.3;
-        bloomPass.threshold = 0;
-        bloomPass.strength = 0.2 + Math.pow(HAPPENINGNESS, 4) * 3;
-        bloomPass.radius = 0.01 + 0.03 * Math.pow(HAPPENINGNESS, 4);
-        blurPass.uniforms['maxblur'].value = 0.05 * Math.pow(HAPPENINGNESS, 4) + 0.001;
-        // bloomPass.strength = 1.5 + Math.pow(HAPPENINGNESS, 4) * 2;
-        // bloomPass.radius = 0.01 + 0.03 * Math.pow(HAPPENINGNESS, 4);
-        // blurPass.uniforms['maxblur'].value = 0.2 * Math.pow(HAPPENINGNESS, 4);
+        if (bloomPass) {
+            bloomPass.threshold.value = 0.3;
+            bloomPass.strength.value = 0.05 + Math.pow(HAPPENINGNESS, 2) * 0.5;
+            bloomPass.radius.value = 0.001 + 0.05 * Math.pow(HAPPENINGNESS, 2);
+        }
+        if (blurPass) {
+            blurPass.directionNode.value = 5.0 * Math.pow(HAPPENINGNESS, 4) + 0.001;
+        }
 
-        composer.render();
+        renderScene();
 
         let mouseoverData = ``;
         if (intersections.length > 0) {
@@ -299,7 +322,9 @@ function animate() {
                 } else {
                     ball = MESH_UUID_BALL_DICT[intersections[0].object.uuid];
                 }
-                mouseoverData = `Ball [${ball.harmCoords}] ${ball.stepsFromA} edosteps`;
+                if (ball) {
+                    mouseoverData = `Ball [${ball.harmCoords}] ${ball.stepsFromA} edosteps`;
+                }
                 copyText = ball.harmCoords.coords.join(', ');
             }
         }
@@ -318,15 +343,15 @@ function animate() {
         // document.getElementById('text').innerText = `${harmonicContext.toVeryNiceDisplayString()}`
     }
 
-}
+};
+
+renderer.setAnimationLoop(animate);
 
 document.addEventListener('click', (event) => {
     if (copyText.length > 0) {
         navigator.clipboard.writeText(copyText);
     }
 });
-
-animate();
 
 let _generateRandom = null;
 

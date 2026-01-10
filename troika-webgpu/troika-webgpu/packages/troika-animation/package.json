@@ -1,0 +1,16 @@
+{
+  "name": "troika-animation",
+  "version": "0.52.0",
+  "description": "Troika Animation Utilities",
+  "author": "Jason Johnston <jason.johnston@protectwise.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/protectwise/troika.git",
+    "directory": "packages/troika-animation"
+  },
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "dist/troika-animation.umd.js",
+  "module": "dist/troika-animation.esm.js",
+  "module:src": "src/index.js"
+}

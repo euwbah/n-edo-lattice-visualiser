@@ -1,9 +1,10 @@
-import { Text } from "troika-three-text";
-import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAMPOS, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, CHORD_TONE_TEMPERED, DEBUG_DRAWING, DIST_CHANGE_SPEED, DIST_STD_DEV_CONST, DIST_STD_DEV_RATIO, DRAW_BALL_SIZE, DRAW_COORDS, EDO, FIFTHS_COLOR, FIXED_CAM, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, JI_COLORS, LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SCULPTURE_CAM_DIST, SCULPTURE_CAM_PHI_CYCLES, SCULPTURE_CAM_THETA_CYCLES, SCULPTURE_CYCLE_DURATION, SCULPTURE_MODE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR } from "./configs.js";
+import { BALL_SIZE, BALL_SUSTAIN_SCALE_FACTOR, CAMPOS, CAM_ROT_ACCEL, CAM_ROT_SPEED, CAM_SPEED, CAM_SPEED_HAPPENINGNESS, CHORD_TONE_TEMPERED, DEBUG_DRAWING, DIST_CHANGE_SPEED, DIST_STD_DEV_CONST, DIST_STD_DEV_RATIO, DRAW_BALL_SIZE, DRAW_COORDS, EDO, FIFTHS_COLOR, FIXED_CAM, HARMONIC_CENTER_SPEED, HARMONIC_CENTER_SPEED_HAPPENINGNESS, HARMONIC_CENTROID_SIZE, JITTER_HAPPENINGNESS, JI_COLORS, MAX_LINE_THICKNESS, MAX_BALLS, MAX_CAM_DIST, MAX_CAM_ROT_SPEED, MAX_FIFTH_HUE, MIN_CAM_DIST, MIN_FIFTH_HUE, NON_CHORD_TONE_SAT_EFFECT, OCTAVES_COLOR, ORIGIN_SIZE, SCULPTURE_CAM_DIST, SCULPTURE_CAM_PHI_CYCLES, SCULPTURE_CAM_THETA_CYCLES, SCULPTURE_CYCLE_DURATION, SCULPTURE_MODE, SEPTIMAL_COLOR, SHOW_DEBUG_BALLS, TEXT_SIZE, TEXT_TYPE, THIRDS_COLOR, UNDECIMAL_COLOR, MIN_LINE_THICKNESS, NON_CHORD_TONE_SIZE_EFFECT } from "./configs.js";
 import { HarmonicContext } from "./harmonic-context.js";
 import { EDOSTEPS_TO_FIFTHS_MAP, HarmonicCoordinates } from "./just-intonation.js";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { mod } from "./helpers.js";
+import { WebGPUText as Text } from "troika-three-text/webgpu";
+import { MeshBasicMaterial } from "three/webgpu";
 
 /**
  * Adds jitter to a vector based on {@linkcode HAPPENINGNESS}
@@ -192,6 +193,13 @@ export class Camera {
     }
 }
 
+/** Helper for underlining text using UTF */
+function underline(text) {
+    const UNDERLINE_CHAR = '\u0332';
+    return text.split('').map(char => char + UNDERLINE_CHAR).join('');
+    // return text;
+}
+
 /**
  * Contains a lookup of {@linkcode THREE.Mesh} object UUIDs to {@linkcode Ball} objects.
  *
@@ -270,18 +278,11 @@ export class Ball {
     #sphereMesh;
 
     /**
-     * The troika text object
+     * The text below the ball.
      *
      * @type {Text}
      */
-    #textDisplay;
-
-    /**
-     * Text object for the fraction bar
-     *
-     * @type {Text}
-     */
-    #fractionBar;
+    #text;
 
     /**
      * Which type of text to display on the ball.
@@ -322,12 +323,6 @@ export class Ball {
         this.#noteOnTime = new Date();
         if (TEXT_TYPE === 'namefraction') {
             this.#textType = 'name';
-            // name first, fraction later.
-            if (this.#fractionBar) {
-                // reset back to 'name' text display.
-                this.#fractionBar.text = ''; // no fraction bar first.
-                this.#textDisplay.position.set(0, -15, 0); // set to 0, -20, 0 for fraction later.
-            }
         }
     }
 
@@ -353,26 +348,18 @@ export class Ball {
 
         if (!this.isDebug) {
             if (this.#textType !== 'none') {
-                this.#textDisplay = new Text();
-                this.#textDisplay.position.set(0, this.#textType === 'relfraction' ? -20 : -15, 0);
-                this.#textDisplay.fontSize = this.size * TEXT_SIZE;
-                this.#textDisplay.font = "./FiraSansExtralight-AyaD.ttf";
-                this.#textDisplay.textAlign = 'center';
-                this.#textDisplay.anchorX = 'center';
-                this.#textDisplay.anchorY = 'middle';
-                this.#sphereMesh.add(this.#textDisplay);
-            }
-
-            if (this.#textType === 'relfraction' || TEXT_TYPE === 'namefraction') {
-                this.#fractionBar = new Text();
-                this.#fractionBar.text = TEXT_TYPE === 'namefraction' ? '' : '_';
-                this.#fractionBar.position.set(0, -21, 0);
-                this.#fractionBar.fontSize = this.size * TEXT_SIZE;
-                this.#fractionBar.font = "./FiraSansExtralight-AyaD.ttf";
-                this.#fractionBar.textAlign = 'center';
-                this.#fractionBar.anchorX = 'center';
-                this.#fractionBar.anchorY = 'bottom';
-                this.#sphereMesh.add(this.#fractionBar);
+                this.#text = new Text();
+                this.#text.font = "FiraSansExtralight-AyaD.ttf";
+                this.#text.position.set(0, this.#textType === 'relfraction' ? -25 : -25, 0);
+                this.#text.fontSize = this.size * TEXT_SIZE;
+                this.#text.anchorX = 'center';
+                this.#text.anchorY = 'middle';
+                this.#text.textAlign = 'center';
+                this.#text.gpuAccelerateSDF = true;
+                this.#text.sdfGlyphSize = 64;
+                this.#text.lineHeight = 0.9;
+                this.#text.maxWidth = 100;
+                this.#sphereMesh.add(this.#text);
             }
         } else {
             this.#sphereMesh.renderOrder = -100;
@@ -452,8 +439,8 @@ export class Ball {
         if (TEXT_TYPE === 'namefraction') {
             this.#textType = 'name';
             // reset back to 'name' text display.
-            this.#fractionBar.text = ''; // no fraction bar first.
-            this.#textDisplay.position.set(0, -15, 0); // set to 0, -20, 0 for fraction later.
+            this.#text.position.set(0, -25, 0);
+            console.log(`notename: ${harmonicContext.getNoteName(this.harmCoords)}`);
         }
     }
 
@@ -492,8 +479,9 @@ export class Ball {
         }
 
         let nonChordToneMult = this.isChordTone ? 1 : NON_CHORD_TONE_SAT_EFFECT;
+        let nonChordToneSizeMult = this.isChordTone ? 1 : NON_CHORD_TONE_SIZE_EFFECT;
 
-        let rootMult = this.isRoot ? 2 : 1;
+        let rootMult = this.isRoot ? 1.3 : 0.8;
 
         this.ballColor.setHSL(
             this.hue,
@@ -503,7 +491,7 @@ export class Ball {
 
         this.#material.opacity = this.opacity;
         this.#material.roughness = 0.3 + 0.3 * HAPPENINGNESS;
-        this.size = Math.pow(this.presence, 0.5) * rootMult;
+        this.size = Math.pow(this.presence, 0.5) * rootMult * nonChordToneSizeMult;
         [this.pos.x, this.pos.y, this.pos.z] = this.harmCoords.toUnscaledCoords();
 
         this.updateDrawing();
@@ -512,33 +500,24 @@ export class Ball {
 
         let textColor = this.ballColor.clone().offsetHSL(0, 0, 0.2);
 
-        if (this.#fractionBar) {
-            this.#fractionBar.color = textColor;
-            this.#fractionBar.lookAt(window.cam.camera.position);
-            this.#fractionBar.strokeOpacity = this.opacity;
-            this.#fractionBar.sync();
-        }
-
-        if (this.#textDisplay) {
+        if (this.#text) {
             if (this.#textType === 'name' && TEXT_TYPE === 'namefraction' && new Date() - this.#noteOnTime > 800) {
                 // after 0.8s, switch note name to fraction.
                 this.#textType = 'relfraction';
-                this.#textDisplay.position.set(0, -20, 0);
-                this.#fractionBar.text = '_';
+                // this.#text.position.set(0, -25, 0);
             }
 
             if (this.#textType === 'relfraction') {
                 let [num, den] = this.relativeHarmCoords.toRatio();
-                this.#textDisplay.text = `${num}\n${den}`;
+                this.#text.text = underline(`${num}`) + `\n${den}`;
             } else if (this.#textType === 'relmonzo') {
-                this.#textDisplay.text = this.relativeHarmCoords.toMonzoString();
+                this.#text.text = this.relativeHarmCoords.toMonzoString();
             } else if (this.#textType === 'name') {
-                this.#textDisplay.text = harmonicContext.getNoteName(this.harmCoords);
+                this.#text.text = harmonicContext.getNoteName(this.harmCoords);
             }
-            this.#textDisplay.color = textColor;
-            this.#textDisplay.lookAt(window.cam.camera.position);
-            this.#textDisplay.strokeOpacity = this.opacity;
-            this.#textDisplay.sync();
+            this.#text.color = textColor;
+            this.#text.opacity = this.opacity * 0.5 + 0.5;
+            this.#text.lookAt(window.cam.camera.position);
         }
     }
 }
@@ -624,7 +603,7 @@ export class BallsManager {
             transparent: true,
             side: THREE.DoubleSide,
         });
-        this.#permaDeadMesh = new THREE.InstancedMesh(this.#permaDeadGeometry, this.#permaDeadMaterial, DRAW_COORDS.length * 4);
+        this.#permaDeadMesh = new THREE.InstancedMesh(this.#permaDeadGeometry, this.#permaDeadMaterial, DRAW_COORDS.length + 50);
         this.#permaDeadMesh.count = 0; // we update the count as we add more balls. All instances up to `count` will be drawn.
         this.#permaDeadMesh.position.set(0, 0, 0);
         window.scene.add(this.#permaDeadMesh);
@@ -952,7 +931,7 @@ export class Scaffolding {
      * @type {HarmonicCoordinates}
      */
     toHarmCoords;
-    thickness = LINE_THICKNESS;
+    thickness = MAX_LINE_THICKNESS;
     color;
 
     /**
@@ -1010,7 +989,7 @@ export class Scaffolding {
         this.color = JI_COLORS[Math.abs(this.adjacency)];
 
         // this.color.setAlpha(Math.pow(this.presence, 0.8));
-        this.thickness = Math.pow(this.presence, 0.9) * (LINE_THICKNESS + 0.2 * HAPPENINGNESS);
+        this.thickness = Math.pow(this.presence, 0.9) * (MAX_LINE_THICKNESS + 0.2 * HAPPENINGNESS);
     }
 
     /**
@@ -1076,12 +1055,12 @@ export class Scaffolding {
         }
 
         // this.color.setAlpha(Math.pow(this.presence, 0.8));
-        this.thickness = Math.pow(this.presence, 0.9) * (1 + 0.2 * HAPPENINGNESS) * LINE_THICKNESS;
+        this.thickness = Math.pow(this.presence, 0.9) * (1 + 0.2 * HAPPENINGNESS) * (MAX_LINE_THICKNESS - MIN_LINE_THICKNESS) + MIN_LINE_THICKNESS;
         [this.from.x, this.from.y, this.from.z] = this.fromHarmCoords.toUnscaledCoords();
         [this.to.x, this.to.y, this.to.z] = this.toHarmCoords.toUnscaledCoords();
 
         this.#material.color.set(this.color);
-        this.#material.opacity = 0.1 + 0.5 * this.presence;
+        this.#material.opacity = 0.02 + 0.6 * this.presence;
         this.#mesh.position.copy(addJitter(this.from.clone().add(this.to).divideScalar(2)));
         this.#mesh.scale.set(this.thickness, this.to.distanceTo(this.from) - BALL_SIZE * 0.3, this.thickness);;
         this.#mesh.lookAt(this.to);

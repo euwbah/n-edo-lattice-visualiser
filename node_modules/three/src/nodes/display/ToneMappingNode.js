@@ -4,7 +4,13 @@ import { rendererReference } from '../accessors/RendererReferenceNode.js';
 
 import { NoToneMapping } from '../../constants.js';
 import { hash } from '../core/NodeUtils.js';
+import { error } from '../../utils.js';
 
+/**
+ * This node represents a tone mapping operation.
+ *
+ * @augments TempNode
+ */
 class ToneMappingNode extends TempNode {
 
 	static get type() {
@@ -13,27 +19,84 @@ class ToneMappingNode extends TempNode {
 
 	}
 
+	/**
+	 * Constructs a new tone mapping node.
+	 *
+	 * @param {number} toneMapping - The tone mapping type.
+	 * @param {Node} exposureNode - The tone mapping exposure.
+	 * @param {Node} [colorNode=null] - The color node to process.
+	 */
 	constructor( toneMapping, exposureNode = toneMappingExposure, colorNode = null ) {
 
 		super( 'vec3' );
 
-		this.toneMapping = toneMapping;
+		/**
+		 * The tone mapping type.
+		 *
+		 * @private
+		 * @type {number}
+		 */
+		this._toneMapping = toneMapping;
 
+		/**
+		 * The tone mapping exposure.
+		 *
+		 * @type {Node}
+		 * @default null
+		 */
 		this.exposureNode = exposureNode;
+
+		/**
+		 * Represents the color to process.
+		 *
+		 * @type {?Node}
+		 * @default null
+		 */
 		this.colorNode = colorNode;
 
 	}
 
-	getCacheKey() {
+	/**
+	 * Overwrites the default `customCacheKey()` implementation by including the tone
+	 * mapping type into the cache key.
+	 *
+	 * @return {number} The hash.
+	 */
+	customCacheKey() {
 
-		return hash( super.getCacheKey(), this.toneMapping );
+		return hash( this._toneMapping );
+
+	}
+
+	/**
+	 * Sets the tone mapping type.
+	 *
+	 * @param {number} value - The tone mapping type.
+	 * @return {ToneMappingNode} A reference to this node.
+	 */
+	setToneMapping( value ) {
+
+		this._toneMapping = value;
+
+		return this;
+
+	}
+
+	/**
+	 * Gets the tone mapping type.
+	 *
+	 * @returns {number} The tone mapping type.
+	 */
+	getToneMapping() {
+
+		return this._toneMapping;
 
 	}
 
 	setup( builder ) {
 
 		const colorNode = this.colorNode || builder.context.color;
-		const toneMapping = this.toneMapping;
+		const toneMapping = this._toneMapping;
 
 		if ( toneMapping === NoToneMapping ) return colorNode;
 
@@ -47,7 +110,7 @@ class ToneMappingNode extends TempNode {
 
 		} else {
 
-			console.error( 'ToneMappingNode: Unsupported Tone Mapping configuration.', toneMapping );
+			error( 'ToneMappingNode: Unsupported Tone Mapping configuration.', toneMapping );
 
 			outputNode = colorNode;
 
@@ -61,7 +124,24 @@ class ToneMappingNode extends TempNode {
 
 export default ToneMappingNode;
 
+/**
+ * TSL function for creating a tone mapping node.
+ *
+ * @tsl
+ * @function
+ * @param {number} mapping - The tone mapping type.
+ * @param {Node<float> | number} exposure - The tone mapping exposure.
+ * @param {Node<vec3> | Color} color - The color node to process.
+ * @returns {ToneMappingNode<vec3>}
+ */
 export const toneMapping = ( mapping, exposure, color ) => nodeObject( new ToneMappingNode( mapping, nodeObject( exposure ), nodeObject( color ) ) );
+
+/**
+ * TSL object that represents the global tone mapping exposure of the renderer.
+ *
+ * @tsl
+ * @type {RendererReferenceNode<vec3>}
+ */
 export const toneMappingExposure = /*@__PURE__*/ rendererReference( 'toneMappingExposure', 'float' );
 
 addMethodChaining( 'toneMapping', ( color, mapping, exposure ) => toneMapping( mapping, exposure, color ) );

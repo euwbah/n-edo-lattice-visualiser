@@ -1,8 +1,8 @@
-import { CONSONANCE_THRESH_N_NOTES, CONSONANCE_THRESHOLD, DRAW_COORDS, EDO, FASTEST_KEY_CHANGE_SECS, HARMONIC_CONTEXT_METHOD, HIGHEST_REL_P2_DENOM, HIGHEST_REL_P3_DENOM, LIST_OF_PRIMES, MAX_DISS_N_NOTES, MAX_DISSONANCE, MAX_DURATION_BEFORE_FORGET_SECS, MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED, MAX_FATIGUE_SECS, MAX_HARMONIC_DISTANCE, MAX_NEW_NOTES_BEFORE_FORGET, MAX_SHORT_TERM_MEMORY, NUM_ROOT_CANDIDATES, PRIME_OCTAVE_LOOKUP, TARGET_TONICITY_UPDATE_NEW_NOTE_TIME, TARGET_TONICITY_UPDATE_TIME, USE_OCTAVE_REDUCED_PRIMES } from "./configs.js";
+import { ALLOW_OCTAVES_IN_STM, CONSONANCE_THRESH_N_NOTES, CONSONANCE_THRESHOLD, DRAW_COORDS, EDO, FASTEST_KEY_CHANGE_SECS, HARMONIC_CONTEXT_METHOD, HIGHEST_REL_P2_DENOM, HIGHEST_REL_P3_DENOM, LIST_OF_PRIMES, MAX_DISS_N_NOTES, MAX_DISSONANCE, MAX_DURATION_BEFORE_FORGET_SECS, MAX_DURATION_BEFORE_FORGET_SECS_SUSTAINED, MAX_FATIGUE_SECS, MAX_HARMONIC_DISTANCE, MAX_NEW_NOTES_BEFORE_FORGET, MAX_SHORT_TERM_MEMORY, NUM_ROOT_CANDIDATES, OCTAVES_REPLACE_STM, PRIME_OCTAVE_LOOKUP, TARGET_TONICITY_UPDATE_TIME, USE_OCTAVE_REDUCED_PRIMES } from "./configs.js";
 import { calculateDissonance, selectCandidate, updateTonicity } from "./dissonance-wasm/dissonance_wasm.js";
 import { mod } from "./helpers.js";
 import { convertStepsToPossibleCoord, EDOSTEPS_TO_FIFTHS_MAP, HarmonicCoordinates } from "./just-intonation.js";
-import { KEYS_STATE } from "./note-tracking.js";
+import { KEYS_STATE, KeyState } from "./note-tracking.js";
 
 export class Pitch {
     /**
@@ -718,8 +718,7 @@ export class HarmonicContext {
 
         let timeSinceLastTonicityUpdate = now - this.#lastTonicityUpdateTime; // in ms
         if (this.#graphHCM &&
-            ((!this.#newNoteBeforeTonicityComputation && timeSinceLastTonicityUpdate > TARGET_TONICITY_UPDATE_TIME)
-                || (this.#newNoteBeforeTonicityComputation && timeSinceLastTonicityUpdate > TARGET_TONICITY_UPDATE_NEW_NOTE_TIME))) {
+            (timeSinceLastTonicityUpdate > TARGET_TONICITY_UPDATE_TIME)) {
             let updateDelta = (now - this.#lastTonicityUpdateTime) / 1000;
             this.#lastTonicityUpdateTime = now;
             this.#newNoteBeforeTonicityComputation = false;
@@ -1139,7 +1138,35 @@ export class HarmonicContext {
         } else if (this.#graphHCM) {
             let candidateRootFreqs = this.shortTermMemory.map(x => x.absoluteRatio.toFrequency(this.absoluteOriginFreq));
             let removeOffender = (updateCandidateRoots) => {
-                let idxOfOffender = this.idxOfMinTonicity;
+                let idxOfOffender = this.idxOfMinTonicity; // min tonicity amongst all notes
+                let idxOfMinTonicitySustained = -1; // min tonicity of note sustained but not held.
+                let idxOfMinTonicityNotSounded = -1; // min tonicity of note neither held nor sustained (only exists in shortTermMemory)
+
+                // Prioritize removing the lowest-tonicity note that are not played, followed by
+                // those that are only sustained, finally followed by any lowest-tonicity note (if there are MAX_SHORT_TERM_MEMORY notes held down).
+
+                this.tonicityContext.forEach((t, idx) => {
+                    /** @type {KeyState} */
+                    let keystate = KEYS_STATE[this.shortTermMemory[idx].stepsFromA];
+                    if (keystate) {
+                        if (keystate.fromSustainPedal) {
+                            if (idxOfMinTonicitySustained == -1 || t < this.tonicityContext[idxOfMinTonicitySustained]) {
+                                idxOfMinTonicitySustained = idx;
+                            }
+                        }
+                    } else {
+                        if (idxOfMinTonicityNotSounded == -1 || t < this.tonicityContext[idxOfMinTonicityNotSounded]) {
+                            idxOfMinTonicityNotSounded = idx;
+                        }
+                    }
+                });
+
+                if (idxOfMinTonicityNotSounded != -1) {
+                    idxOfOffender = idxOfMinTonicityNotSounded;
+                } else if (idxOfMinTonicitySustained != -1) {
+                    idxOfOffender = idxOfMinTonicitySustained;
+                }
+
                 if (HARMONIC_CONTEXT_METHOD == 'draw' && this.shortTermMemory[idxOfOffender].absoluteRatio.equals(this.#prevDrawTarget)) {
                     // If the offender is the previously drawn note, we should not remove it.
                     // Instead, remove the note with the lowest tonicity that isn't the drawn note.
@@ -1155,8 +1182,9 @@ export class HarmonicContext {
                 }
                 if (idxOfOffender != -1) {
                     this.removePitchAtIdx(idxOfOffender);
-                    if (updateCandidateRoots)
+                    if (updateCandidateRoots) {
                         candidateRootFreqs.splice(idxOfOffender, 1);
+                    }
                 }
             }
 
@@ -1241,10 +1269,10 @@ export class HarmonicContext {
                 }
 
                 if (HARMONIC_CONTEXT_METHOD == 'graphdist' || !drawNote) {
-                    // 'graphdist' standard procedure happens method is graphdist, but also when the
-                    // current note played is not a drawn note, and not temperable to any note that
-                    // is octave equivalent to #currDrawTarget, then we will not have found any
-                    // drawable candidate yet.
+                    // 'graphdist' standard procedure obviously happens when method is graphdist,
+                    // but also when the current note played is not a drawn note, and not temperable
+                    // to any note that is octave equivalent to #currDrawTarget, then we will not
+                    // have found any drawable candidate yet.
 
                     // limit top N tonicities only.
                     pitchIndices.splice(NUM_ROOT_CANDIDATES);
@@ -1292,13 +1320,13 @@ export class HarmonicContext {
                     }
                 }
 
-                if (octaveEquivIdx != -1) {
+                if (octaveEquivIdx != -1 && (!ALLOW_OCTAVES_IN_STM)) {
                     let replacedOctFreqs = candidateRootFreqs.slice();
                     replacedOctFreqs[octaveEquivIdx] = newAbsRatio.toFrequency(this.absoluteOriginFreq);
                     let oldTon = updateTonicity(candidateRootFreqs, this.tonicityContext).at(octaveEquivIdx);
                     let newTon = updateTonicity(replacedOctFreqs, this.tonicityContext).at(octaveEquivIdx);
 
-                    if (newTon >= oldTon) {
+                    if (newTon >= oldTon || OCTAVES_REPLACE_STM) {
                         // The new note overrides the previous octave equivalent note, initialized
                         // with the same tonicity at first.
                         this.shortTermMemory[octaveEquivIdx] =
@@ -1337,8 +1365,7 @@ export class HarmonicContext {
                     this.shortTermMemory.push(new Pitch(stepsFromA, bestFitRelativeFrom, bestFitRatio, newTonicity));
                     this.tonicityContext.push(newTonicity);
                 }
-            }
-            if (existingPitch != null) {
+            } else {
                 // If this note is existing already, refresh its countdown timer.
                 existingPitch.noteOnTime = new Date();
             }

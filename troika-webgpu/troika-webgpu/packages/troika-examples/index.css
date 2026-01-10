@@ -1,0 +1,84 @@
+
+html, body {
+  background: #222;
+  color: #FFF;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+}
+
+.examples {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.examples_header {
+  background: #666;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+}
+
+.stats_toggle {
+  margin-left: auto;
+}
+
+.vr_button {
+  margin-left: 20px;
+}
+
+.examples_header h1 {
+  font-size: 16px;
+  margin: 0 20px 0 0;
+}
+
+.examples_header .repo_link {
+  margin-left: 30px;
+  text-decoration: none;
+}
+.examples_header .repo_link > img {
+  vertical-align: bottom;
+}
+
+
+a {
+  color: #00b3ee;
+}
+
+.examples_body {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.example_controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 10px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: rgba(34, 34, 34, 0.8);
+}
+
+.example_desc {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 20px;
+  background: rgba(255,255,255,.1);
+}
+
+.react-dat-gui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-height: 80%;
+  overflow: auto;
+}

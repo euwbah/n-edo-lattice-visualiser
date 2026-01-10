@@ -1,0 +1,27 @@
+{
+  "name": "troika-flex-layout",
+  "version": "0.52.4",
+  "description": "Utility for calculating flexbox layouts in a web worker",
+  "author": "Jason Johnston <jason.johnston@protectwise.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/protectwise/troika.git",
+    "directory": "packages/troika-flex-layout"
+  },
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "dist/troika-flex-layout.umd.js",
+  "module": "dist/troika-flex-layout.esm.js",
+  "module:src": "src/index.js",
+  "dependencies": {
+    "troika-three-text": "^0.52.4",
+    "troika-worker-utils": "^0.52.0"
+  },
+  "devDependencies": {
+    "terser": "^5.14.2",
+    "yoga-layout-prebuilt": "1.9.6"
+  },
+  "scripts": {
+    "build-yoga": "rollup -c rollup.config.build-yoga.js"
+  }
+}

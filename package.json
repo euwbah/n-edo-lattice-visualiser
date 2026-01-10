@@ -1,7 +1,8 @@
 {
   "dependencies": {
-    "three": "0.171.0",
+    "bidi-js": "^1.0.3",
+    "three": "git+ssh://git@github.com:mrdoob/three.js.git",
     "three-nebula": "^10.0.3",
-    "troika-three-text": "0.52.3"
+    "webgl-sdf-generator": "^1.1.1"
   }
 }
