@@ -1631,7 +1631,7 @@ export class HarmonicContext {
                 this.getNoteName(x.absoluteRatio).toString().padEnd(9, '\xa0') + ' '
                 + x.stepsFromA.toString().padStart(4, '\xa0') + ' '
                 + (x.tonicity != null ? x.tonicity.toFixed(3) + ' ' : '')
-                + x.absoluteRatio.toMonzoString())
+                + x.absoluteRatio.subtract(this.effectiveOrigin).toMonzoString())
             .join('\n');
 
         if (HARMONIC_CONTEXT_METHOD == 'draw') {
